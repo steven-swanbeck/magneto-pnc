@@ -66,6 +66,6 @@ endif()
 # install(FILES ${io_headers} DESTINATION "${INSTALL_INCLUDE_DIR}/Utils/src/IO")
 # install(FILES ${math_headers} DESTINATION "${INSTALL_INCLUDE_DIR}/Utils/src/Math")
 
-SET (THIS_COM ${CMAKE_SOURCE_DIR}/../ )
-CONFIGURE_FILE(${PROJECT_SOURCE_DIR}/config.h.cmake ${PROJECT_SOURCE_DIR}/Configuration.h)
+# SET (THIS_COM ${CMAKE_SOURCE_DIR}/../ )
+# CONFIGURE_FILE(${PROJECT_SOURCE_DIR}/config.h.cmake ${PROJECT_SOURCE_DIR}/Configuration.h)
 # install(FILES ${PROJECT_SOURCE_DIR}/Configuration.h DESTINATION "${INSTALL_INCLUDE_DIR}")

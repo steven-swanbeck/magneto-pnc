@@ -9,10 +9,10 @@ robot: robot_description/Robot/magneto_files/MagnetoSim_Dart.urdf
 
 #ground: robot_description/Ground/ground_terrain.urdf
 #ground: robot_description/Ground/magneto/ground_climbing.urdf
-#ground: robot_description/Ground/magneto/ground_inclined.urdf
-#ground: robot_description/Ground/magneto/ground_inclined02.urdf
+# ground: robot_description/Ground/magneto/ground_inclined.urdf
+# ground: robot_description/Ground/magneto/ground_inclined02.urdf
 ground: robot_description/Ground/magneto/ground_inclined03.urdf
-#ground: robot_description/Ground/magneto/ground_3d.urdf
+# ground: robot_description/Ground/magneto/ground_3d.urdf
 
 initial_pose: [ 0.0, 0.0, 0.15, 0.0, 1.0, 0.0 ] # x,y,z, rz,ry,rx
 

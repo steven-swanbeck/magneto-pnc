@@ -77,6 +77,7 @@ void MagnetoRosNode::CheckRobotSkeleton(const dart::dynamics::SkeletonPtr& skel)
 }
 
 void MagnetoRosNode::customPostStep(){
+    // ROS_ERROR_STREAM("POST STEP");
 
 }
 
@@ -214,6 +215,8 @@ void MagnetoRosNode::ApplyMagneticForce()  {
                             = Eigen::Quaternion<double>( 
                                 ground_->getBodyNode("ground_link")
                                         ->getWorldTransform().linear() );
+    Eigen::VectorXd p_al = robot_->getBodyNode(MagnetoBodyNode::AL_foot_link)->getWorldTransform().translation(); // &REF
+    // std::cout << "Robot position: " << p_al << ", Magnetic force: " << magnetic_force_ << "\n";
     for(auto it : command_->b_magnetism_map) {
         if( it.second ) {
             force[2] = - magnetic_force_;
@@ -354,6 +357,8 @@ void MagnetoRosNode::SetParams_() {
     }
 }
 
+// & This function reads in a yaml file with a series of motions, breaks it up and adds them to a list in magnetointerface
+// ? Maybe I can add some functionality to generate a single moveset using some higher-level command, run it, then wait for the next
 void MagnetoRosNode::ReadMotions_() {
 
     std::ostringstream motion_file_name;    
@@ -386,7 +391,7 @@ void MagnetoRosNode::ReadMotions_() {
             // interface_->(WalkingInterruptLogic*)interrupt_
             //             ->motion_command_script_list_
             //             .push_back(MotionCommand(link_idx,md_temp));
-            ((MagnetoInterface*)interface_)->AddScriptWalkMotion(link_idx,md_temp);
+            ((MagnetoInterface*)interface_)->AddScriptWalkMotion(link_idx,md_temp); // *NOTE: action trace
         }
 
     } catch (std::runtime_error& e) {

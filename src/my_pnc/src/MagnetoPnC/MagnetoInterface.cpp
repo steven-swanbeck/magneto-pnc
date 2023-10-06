@@ -276,7 +276,7 @@ void MagnetoInterface::AddScriptWalkMotion(int _link_idx,
     // ((StaticWalkingTest*)test_)->addNextStep(motion_param); 
     MotionCommand motion_command = MotionCommand(_link_idx,_motion_data);
     ((WalkingInterruptLogic*)interrupt_)
-        ->motion_command_script_list_.push_back(motion_command);
+        ->motion_command_script_list_.push_back(motion_command); // *NOTE: action trace
 }
 
 

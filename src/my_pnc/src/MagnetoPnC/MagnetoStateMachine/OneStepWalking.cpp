@@ -112,6 +112,9 @@ bool OneStepWalking::endOfState() {
     my_utils::pretty_print(curr_ref_.q, std::cout, "curr_q_des");
     Eigen::VectorXd q_curr = robot_->getQ();
     my_utils::pretty_print(q_curr, std::cout, "curr_q_act");
+
+    // TODO make sure I can print out state information from here
+
     //exit(0);
     return true;
   }

@@ -1,0 +1,77 @@
+rosrun my_simulator run_magneto "config/Magneto/SIMULATIONWALK.yaml"
+rosrun my_simulator magneto_ros "config/Magneto/SIMULATIONWALK.yaml"
+
+Cautions:
+ROS version of code may be outdated compared to other (MagnetoWorldNode vs. MagnetoRosNode)
+
+Notes:
+- Code comments marked with &REF are things to consider adding
+- All movement commanding is currently commanding the coordinated foot positions of each foot in succession, no higher-level motion planning
+- MagnetoInterface.hpp exposes the MagnetoCommand structure used to assign the links and such for movement
+- 
+
+Needs:
+- Spatially-variable magnetic force
+    1. Spatially discretize the surface of interest (probably fine to assume we're dealing with a flat plane at some non-horizontal orientation)
+    2. Randomly seed poor-magnetic areas onto the surface
+    3. Use gradients to blend them into the surface 
+    4. Store them in a data structure to be able to look up the scalar value given a set of xyz coordinates
+
+    > This can then be used in the MagentoRosNode::ApplyMagneticForce() function in MagnetoRosNode/MagnetoWorldNode to alter the fixed magnetic force:
+    		force[2] = - magnetic_force_;   -->   force[2] = - c * magnetic_force_;
+    > where c is a scalar returned from some lookup call with the input as the global position p_al where the foot will be stepping:
+    		c = lookupForceModifier(p_al)
+    
+- High-level movement goal generation
+    > All commands are currently just a series of relative foot placements for the robot
+    > We need to instead have a global goal and encourage the robot to move toward it
+        * Maybe we just try to make the body of the robot point in the direction of the goal, then algorithmically generate a series of foot positions to get it there?
+    > This must be robust to inability to move toward the goal (remember bug algorithms from Zhang)
+    
+- Integration of/compatability with the learning component
+    > Simulation is all in Dart, which is written in C++
+    > There is a ROS-based version, we can perhaps run the ROS version and each time before the simulator takes a step in time, we trigger an RL request from a ROS-based Python server
+    > What kinds of stuff can we learn?
+        * Maybe instead of controlling high level motor functions of the robot, we just simulate the exploration process by generating candidate poses
+          around the desired foot stepping spot and using an RL algorithm to over time learn the best one to choose
+            & input is the series of candidate positions
+            & output is the selected pose
+        * Maybe we could instead add in a hard-coded force exertion step whereby the robot places its foot somewhere and pulls to test the magnetic force at that location,
+          and if its foot comes off it learns not to trust that area (or it could learn how hard it needs to pull) and it could recommend a direction to move to find a better
+          direction given its knowledge of the scene (like spatial gradient descent on what it has already seen, think carving out a river on the spatial contour map as it moves)
+            & input is state of the robot, maybe some knowledge of surrounding magnetic field and output is a force magnitude
+            & input is the location, knowledge of the surrounding magnetic forces that have been discovered, output is a new location to step
+    > Consider genetic algorithm functionality?
+
+- Comment out these lines in my_utils cmake:
+	# SET (THIS_COM ${CMAKE_SOURCE_DIR}/../ )
+	# CONFIGURE_FILE(${PROJECT_SOURCE_DIR}/config.h.cmake ${PROJECT_SOURCE_DIR}/Configuration.h)
+	
+https://ieeexplore.ieee.org/document/7402167
+https://www.tandfonline.com/doi/full/10.1080/15599612.2023.2222146
+https://arxiv.org/pdf/1812.11103.pdf
+
+
+in Dart
+/examples/deprecated_examples/glut_human_joint_limits/CMakeLists.txt
+comment out the mismatched endif() in line 41
+
+then continue the Dart installation process:
+cmake ..
+make -j6
+sudo make install
+
+if this was all successful, delete the Dart folder from your workspace
+
+then try to build again. when I did this, I didn't have a library called nlopt (https://nlopt.readthedocs.io/en/latest/)
+follow the instructions to install (https://nlopt.readthedocs.io/en/latest/NLopt_Installation/) and make sure it to add it to your LD_LIBRARY_PATH
+then try to run catkin_make on the directory again and see if it works
+
+mkdir -p magneto_ws/src
+cd magneto_ws/src
+git clone ___
+catkin_make
+
+in my_utils package, open generated Configuration.h and change #define THIS_COM to be the the dir before the clone
+in my_utils package, edit the CMakeLists.txt file to comment out lines 69 and 70
+
