@@ -25,4 +25,5 @@ class WalkingInterruptLogic : public InterruptLogic {
   MotionCommand* motion_command_brfoot_;
   MotionCommand* motion_command_instant_;
 
+  void executeCommand();
 };

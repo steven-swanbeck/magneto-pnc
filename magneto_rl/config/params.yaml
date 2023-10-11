@@ -1,0 +1,10 @@
+magneto:
+  rl:
+    active:         True
+  simulation:
+    walkset:        config/Magneto/USERCONTROLWALK.yaml
+    link_idx:
+      AR:           23
+      AL:           14
+      BL:           32
+      BR:           41

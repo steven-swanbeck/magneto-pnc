@@ -114,15 +114,18 @@ void MagnetoInterface::checkContactDynamics(const Eigen::VectorXd& torque,
 }
 
 void MagnetoInterface::getCommand(void* _data, void* _command) {
+    // std::cout << "[MagnetoInterface] inisde getCommand()\n";
     MagnetoCommand* cmd = ((MagnetoCommand*)_command);
     MagnetoSensorData* data = ((MagnetoSensorData*)_data);
+    // ! Perhaps this initialization is blocking us from triggering getCommand via the control architecture?
     if(!_Initialization(data, cmd)) {
         state_estimator_->Update(data); // robot skelPtr in robotSystem updated 
         interrupt_->processInterrupts();
+        // TODO add in new function to add commands here
         control_architecture_->getCommand(cmd);
         
-        if(!_CheckCommand(cmd)) { _SetStopCommand(data,cmd); }    
-    }   
+        if(!_CheckCommand(cmd)) { _SetStopCommand(data, cmd); }    
+    }
     // save data
     _SaveDataCmd(data, cmd);
     running_time_ = ((double)count_)*MagnetoAux::servo_rate;
@@ -139,7 +142,7 @@ bool MagnetoInterface::_Initialization(MagnetoSensorData* data,
         test_initialized = true;
     }
     if (count_ < waiting_count_) {
-         _SetStopCommand(data, _command);
+        _SetStopCommand(data, _command);
         state_estimator_->Initialization(data);
         return true;
     }
@@ -164,8 +167,8 @@ void MagnetoInterface::_ParameterSetting() {
         }
     } catch (std::runtime_error& e) {
         std::cout << "Error reading parameter [" << e.what() << "] at file: ["
-                  << __FILE__ << "]" << std::endl
-                  << std::endl;
+                    << __FILE__ << "]" << std::endl
+                    << std::endl;
         exit(0);
     }
 }
@@ -177,11 +180,11 @@ bool MagnetoInterface::_CheckCommand(MagnetoCommand* cmd){
 }
 
 void MagnetoInterface::_SetStopCommand(MagnetoSensorData* data, MagnetoCommand* cmd) {
-  for (int i(0); i < robot_->getNumActuatedDofs(); ++i) {
-    cmd->jtrq[i] = 0.;
-    cmd->q[i] = data->q[i];
-    cmd->qdot[i] = 0.;
-  }
+    for (int i(0); i < robot_->getNumActuatedDofs(); ++i) {
+        cmd->jtrq[i] = 0.;
+        cmd->q[i] = data->q[i];
+        cmd->qdot[i] = 0.;
+    }
 }
 
 void MagnetoInterface::_SaveDataCmd(MagnetoSensorData* data, MagnetoCommand* cmd)  {
@@ -219,6 +222,11 @@ bool MagnetoInterface::IsFootPlannerUpdated() {
         check_foot_planner_updated = sp_->check_foot_planner_updated;
         return true;
     }   
+}
+
+int MagnetoInterface::MonitorFootPlannerUpdate() {
+    // std::cout << sp_->check_foot_planner_updated << "\n";
+    return sp_->check_foot_planner_updated;
 }
 
 void MagnetoInterface::GetCoMTrajectory(
@@ -265,6 +273,7 @@ void MagnetoInterface::StaticWalk(const int& _moving_foot,
     // ((StaticWalkingTest*)test_)->addNextStep(motion_param); 
     MOTION_DATA motion_data = MOTION_DATA(_pos, _ori, _is_bodyframe, 
                                         _motion_period, _swing_height);
+    std::cout << "INSIDE STATICWALK IN MAGNETOINTERFACE" << "\n";
     ((WalkingInterruptLogic*)interrupt_)->motion_command_instant_
                                     ->clear_and_add_motion(_moving_foot, motion_data);
 }
@@ -279,5 +288,8 @@ void MagnetoInterface::AddScriptWalkMotion(int _link_idx,
         ->motion_command_script_list_.push_back(motion_command); // *NOTE: action trace
 }
 
+void MagnetoInterface::ClearWalkMotions() {
+    ((WalkingInterruptLogic*)interrupt_)->motion_command_script_list_.clear();
+}
 
 

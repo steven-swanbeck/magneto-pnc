@@ -63,6 +63,8 @@ class MagnetoControlArchitecture : public ControlArchitecture {
   void _InitializeParameters();
   bool b_state_first_visit_;
 
+  bool ready_for_next_input_;
+
  protected:
   MagnetoStateProvider* sp_;
 

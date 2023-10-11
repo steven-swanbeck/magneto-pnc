@@ -1,0 +1,39 @@
+servo_rate: 0.001 # !!this should be match with controller servo rate!!
+is_record: false
+show_joint_frame: false #false
+show_link_frame: true #false
+plot_mpc_result: false # true
+plot_result: true # true
+
+robot: robot_description/Robot/magneto_files/MagnetoSim_Dart.urdf
+
+#ground: robot_description/Ground/ground_terrain.urdf
+#ground: robot_description/Ground/magneto/ground_climbing.urdf
+# ground: robot_description/Ground/magneto/ground_inclined.urdf
+# ground: robot_description/Ground/magneto/ground_inclined02.urdf
+ground: robot_description/Ground/magneto/ground_inclined03.urdf
+# ground: robot_description/Ground/magneto/ground_3d.urdf
+
+initial_pose: [ 0.0, 0.0, 0.15, 0.0, 1.0, 0.0 ] # x,y,z, rz,ry,rx
+
+# motion_script: config/Magneto/MOTIONS/walkset_test.yaml
+
+motion_script: config/Magneto/MOTIONS/walkset_empty.yaml
+# motion_script: config/Magneto/MOTIONS/walkset_210528/walkset_forward_ccw.yaml
+# motion_script: config/Magneto/MOTIONS/walkset_210528/walkset_forward_cw.yaml
+# motion_script: config/Magneto/MOTIONS/walkset_210528/walkset_leftward_cw.yaml
+# motion_script: config/Magneto/MOTIONS/walkset_210528/walkset_leftward_ccw.yaml
+# motion_script: config/Magneto/MOTIONS/walkset_210528/walkset_rightward_ccw.yaml
+# motion_script: config/Magneto/MOTIONS/walkset_210528/walkset_rightward_cw.yaml
+# motion_script: config/Magneto/MOTIONS/walkset_210528/walkset_backward_cw.yaml
+# motion_script: config/Magneto/MOTIONS/walkset_210528/walkset_backward_ccw.yaml
+# motion_script: config/Magneto/MOTIONS/walkset_210528/walkset__random.yaml
+
+control_configuration:
+  kp: 35 #100 #20 #300
+  kd: 2 #10  #3 #15
+  torque_limit: 5 #4.5
+
+magnetic_force: 147. #[N] 
+residual_magnetism: 5.0 # 3.0 #[%]
+friction: 0.7

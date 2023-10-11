@@ -144,4 +144,7 @@ class MagnetoInterface : public EnvInterface {
     
     bool IsPlannerUpdated();
     bool IsFootPlannerUpdated();
+
+    int MonitorFootPlannerUpdate();
+    void ClearWalkMotions();
 };

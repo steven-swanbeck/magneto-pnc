@@ -16,7 +16,7 @@ MagnetoRosNode::MagnetoRosNode(ros::NodeHandle& nh, const dart::simulation::Worl
 
     // ---- PLOT?
     b_plot_result_ = true;
-   
+
     // ---- SET POSITION LIMIT
     // setPositionLimitEnforced
 
@@ -36,6 +36,21 @@ MagnetoRosNode::MagnetoRosNode(ros::NodeHandle& nh, const dart::simulation::Worl
 
     sensor_data_->R_ground = ground_->getBodyNode("ground_link")
                                     ->getWorldTransform().linear();
+
+    // ---& RL PARAMS
+    if (!nh_.param<bool>("/magneto/rl/active", should_use_rl_, false));
+    if (should_use_rl_) {
+        if (!nh_.param<std::string>("/magneto/simulation/walkset", walkset_, "config/Magneto/USERCONTROL.yaml"));
+    } else {
+        nh_.param<std::string>("/magneto/simulation/walkset", walkset_, "config/Magneto/SIMULATIONWALK.yaml");
+    }
+    num_rl_commands_received_ = 0;
+
+    status_pub_ = nh_.advertise<std_msgs::String>("/magneto/node/status", 1, this);
+    
+    if (should_use_rl_) {
+        next_step_client_ = nh_.serviceClient<magneto_rl::FootPlacement>("/determine_next_step");
+    }
 
     // ---- SET control parameters %% motion script
     run_mode_ = ((MagnetoInterface*)interface_)->getRunMode();
@@ -76,17 +91,130 @@ void MagnetoRosNode::CheckRobotSkeleton(const dart::dynamics::SkeletonPtr& skel)
     }    
 }
 
-void MagnetoRosNode::customPostStep(){
-    // ROS_ERROR_STREAM("POST STEP");
+// !!!!!!!!!!
+// TODO figure out why there is a delay between the step I create and the one that is executed
+// - ie. why my inputs are delayed by one cycle and fix
+// - then create a function, perhaps using the "enableButtonFlag()" method to continue calling s on the sim until some condition is met
+// - once I have a good way of looping the action cycle and using updates provided on the set right then, I can think about doing the more fun stuff
 
+void MagnetoRosNode::customPostStep() {
+    // & RL foot placement updating
+    if (should_use_rl_) {
+        // ROS_INFO_STREAM("Planner updates: " << (((MagnetoInterface*)interface_)->MonitorFootPlannerUpdate()) << ", RL Commands: " << num_rl_commands_received_ <<  ", initial steps: " << num_initial_steps_);
+        
+        // TODO think about this logic and whether I want to keep it or if it needs to be changed
+        if ((((MagnetoInterface*)interface_)->MonitorFootPlannerUpdate() - num_initial_steps_) == num_rl_commands_received_) {
+            MagnetoRosNode::pluginInterface();
+        }
+    }
 }
 
 void MagnetoRosNode::enableButtonFlag(uint16_t key) {
     std::cout << "button(" << (char)key << ") pressed handled @ MagnetoRosNode::enableButtonFlag" << std::endl;
-    ((MagnetoInterface*)interface_) -> interrupt_ -> setFlags(key);    
+    ((MagnetoInterface*)interface_) -> interrupt_ -> setFlags(key);
 }
 
+
+
+// & Primary RL plugin interface function
+void MagnetoRosNode::pluginInterface() {
+    ROS_WARN_STREAM("Inside pluginInterface()");
+    std_msgs::String status;
+    status.data = "In plot foot step result";
+    status_pub_.publish(status);
+
+    magneto_rl::FootPlacement srv;
+
+    // TODO fill in positions of feet and orientation of body here
+    // Eigen::Quaternion<double> quat_ground 
+    //                         = Eigen::Quaternion<double>( 
+    //                             ground_->getBodyNode("ground_link")
+    //                                     ->getWorldTransform().linear());
+    Eigen::Quaternion<double> q_base 
+                            = Eigen::Quaternion<double>( 
+                                robot_->getBodyNode(MagnetoBodyNode::base_link)
+                                        ->getWorldTransform().linear());
+    Eigen::VectorXd p_base = robot_->getBodyNode(MagnetoBodyNode::base_link)->getWorldTransform().translation();
+    Eigen::VectorXd p_ar = robot_->getBodyNode(MagnetoBodyNode::AR_foot_link)->getWorldTransform().translation();
+    Eigen::VectorXd p_al = robot_->getBodyNode(MagnetoBodyNode::AL_foot_link)->getWorldTransform().translation();
+    Eigen::VectorXd p_bl = robot_->getBodyNode(MagnetoBodyNode::BL_foot_link)->getWorldTransform().translation();
+    Eigen::VectorXd p_br = robot_->getBodyNode(MagnetoBodyNode::BR_foot_link)->getWorldTransform().translation();
+
+    geometry_msgs::Pose base_pose;
+    base_pose.position.x = p_base.x();
+    base_pose.position.y = p_base.y();
+    base_pose.position.z = p_base.z();
+    base_pose.orientation.w = q_base.w();
+    base_pose.orientation.x = q_base.x();
+    base_pose.orientation.y = q_base.y();
+    base_pose.orientation.z = q_base.z();
+
+    geometry_msgs::Point point_ar;
+    point_ar.x = p_ar.x();
+    point_ar.y = p_ar.y();
+    point_ar.z = p_ar.z();
+
+    geometry_msgs::Point point_al;
+    point_al.x = p_al.x();
+    point_al.y = p_al.y();
+    point_al.z = p_al.z();
+
+    geometry_msgs::Point point_bl;
+    point_bl.x = p_bl.x();
+    point_bl.y = p_bl.y();
+    point_bl.z = p_bl.z();
+
+    geometry_msgs::Point point_br;
+    point_br.x = p_br.x();
+    point_br.y = p_br.y();
+    point_br.z = p_br.z();
+
+    srv.request.base_pose = base_pose;
+    srv.request.p_ar = point_ar;
+    srv.request.p_al = point_al;
+    srv.request.p_bl = point_bl;
+    srv.request.p_br = point_br;
+
+    if (!next_step_client_.call(srv)) {
+        ROS_ERROR_STREAM("Failed to call determine_next_step service");
+    }
+
+    int link_idx;
+    MOTION_DATA md_temp;
+
+    Eigen::VectorXd pos_temp(3);
+    Eigen::VectorXd ori_temp(4);
+    ori_temp << 1, 0, 0, 0;
+    pos_temp << srv.response.pos.x, srv.response.pos.y, srv.response.pos.z;
+    md_temp.motion_period = 0.4;
+    md_temp.swing_height = 0.05;
+
+    link_idx = srv.response.link_idx;
+
+    bool is_bodyframe {true};
+    md_temp.pose = POSE_DATA(pos_temp, ori_temp, is_bodyframe);
+
+    ((MagnetoInterface*)interface_)->ClearWalkMotions();
+    // TODO try to access the set walk motions to understand what's going on
+    // ((MagnetoInterface*)interface_)->
+    ((MagnetoInterface*)interface_)->AddScriptWalkMotion(link_idx, md_temp);
+
+    num_rl_commands_received_++;
+}
+
+
+
 void MagnetoRosNode::customPreStep() {
+    // & RL foot placement updating
+    // if (should_use_rl_) {
+    //     // std::cout << "Planner updates: " << (((MagnetoInterface*)interface_)->MonitorFootPlannerUpdate()) << ", RL Commands: " << num_rl_commands_received_ <<  ", initial steps: " << num_initial_steps_ << "\n";
+    //     // ROS_INFO_STREAM("Planner updates: " << (((MagnetoInterface*)interface_)->MonitorFootPlannerUpdate()) << ", RL Commands: " << num_rl_commands_received_ <<  ", initial steps: " << num_initial_steps_);
+        
+    //     // TODO think about this logic and whether I want to keep it
+    //     if ((((MagnetoInterface*)interface_)->MonitorFootPlannerUpdate() - num_initial_steps_) == num_rl_commands_received_) {
+    //         MagnetoRosNode::pluginInterface();
+    //     }
+    // }
 
     static Eigen::VectorXd qInit = robot_->getPositions();
 
@@ -114,9 +242,16 @@ void MagnetoRosNode::customPreStep() {
     // --------------------------------------------------------------
     //          COMPUTE COMMAND - desired joint acc/trq etc
     // --------------------------------------------------------------
-    CheckInterrupt_();
+    // CheckInterrupt_();
     // ROS_INFO("getCommand start");
+    // ROS_INFO_STREAM("q\n" << command_->q);
+    // ROS_INFO_STREAM("qdot\n" << command_->qdot);
+    // ROS_INFO_STREAM("jtrg\n" << command_->jtrq);
+    // TODO figure out whether the command sent is being updated here as desired?
     ((MagnetoInterface*)interface_)->getCommand(sensor_data_, command_);
+    // ROS_INFO_STREAM("post q\n" << command_->q);
+    // ROS_INFO_STREAM("post qdot\n" << command_->qdot);
+    // ROS_INFO_STREAM("post jtrg\n" << command_->jtrq);
     // ROS_INFO("getCommand end");
     
     if (b_plot_result_) {
@@ -187,7 +322,6 @@ void MagnetoRosNode::customPreStep() {
     //0112 my_utils::saveVector(command_->q, "q_cmd");
     //0112 my_utils::saveVector(sensor_data_->q, "q_sen");
 
-
     count_++;
 }
 
@@ -239,6 +373,7 @@ void MagnetoRosNode::ApplyMagneticForce()  {
 }
 
 void MagnetoRosNode::PlotResult_() {
+    ROS_WARN_STREAM("In plot result");
 
     Eigen::VectorXd com_pos = Eigen::VectorXd::Zero(3);
 
@@ -303,6 +438,7 @@ void MagnetoRosNode::PlotResult_() {
 
 
 void MagnetoRosNode::PlotFootStepResult_() {
+
     world_->removeAllSimpleFrames();
     
     Eigen::VectorXd foot_pos;
@@ -331,8 +467,11 @@ void MagnetoRosNode::PlotFootStepResult_() {
 void MagnetoRosNode::SetParams_() {
     try {
         YAML::Node simulation_cfg;
-        if(run_mode_==RUN_MODE::STATICWALK)
-            simulation_cfg = YAML::LoadFile(THIS_COM "config/Magneto/SIMULATIONWALK.yaml");
+        if(run_mode_==RUN_MODE::STATICWALK) 
+        {
+            // simulation_cfg = YAML::LoadFile(THIS_COM "config/Magneto/SIMULATIONWALK.yaml");
+            simulation_cfg = YAML::LoadFile(THIS_COM + walkset_);
+        }
         else
         {
             std::cout<<"unavailable run mode"<<std::endl;
@@ -364,11 +503,12 @@ void MagnetoRosNode::ReadMotions_() {
     std::ostringstream motion_file_name;    
     motion_file_name << THIS_COM << motion_file_name_;
 
-    int num_motion;  
+    int num_motion;
 
     try { 
         YAML::Node motion_cfg = YAML::LoadFile(motion_file_name.str());
         my_utils::readParameter(motion_cfg, "num_motion", num_motion);
+        num_initial_steps_ = num_motion;
         for(int i(0); i<num_motion; ++i){
             int link_idx;
             MOTION_DATA md_temp;
@@ -391,7 +531,7 @@ void MagnetoRosNode::ReadMotions_() {
             // interface_->(WalkingInterruptLogic*)interrupt_
             //             ->motion_command_script_list_
             //             .push_back(MotionCommand(link_idx,md_temp));
-            ((MagnetoInterface*)interface_)->AddScriptWalkMotion(link_idx,md_temp); // *NOTE: action trace
+            ((MagnetoInterface*)interface_)->AddScriptWalkMotion(link_idx, md_temp); // *NOTE: action trace
         }
 
     } catch (std::runtime_error& e) {

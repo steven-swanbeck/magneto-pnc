@@ -19,7 +19,8 @@ class OneStepProgress : public osgGA::GUIEventHandler {
 
         if (ea.getEventType() == osgGA::GUIEventAdapter::KEYUP) {            
             if ( ea.getKey() == 'f') {
-                int numStepProgress(50);                
+                int numStepProgress(50);
+                ROS_WARN_STREAM("f entered");      
                 for (int i = 0; i < numStepProgress; ++i) {
                     worldnode_->customPreStep();
                     worldnode_->getWorld()->step();
@@ -27,6 +28,7 @@ class OneStepProgress : public osgGA::GUIEventHandler {
                 }
                 return true;
             } else {
+                ROS_WARN_STREAM("other entered");
                 uint16_t button_pressed = ea.getKey();
                 std::cout << "button(" << (char)button_pressed << ")  pressed handled @ Main.cpp" << std::endl;
                 worldnode_->enableButtonFlag(button_pressed);

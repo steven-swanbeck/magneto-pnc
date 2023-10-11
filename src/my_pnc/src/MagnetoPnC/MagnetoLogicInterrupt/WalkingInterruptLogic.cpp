@@ -24,8 +24,14 @@ WalkingInterruptLogic::WalkingInterruptLogic(
 
 WalkingInterruptLogic::~WalkingInterruptLogic() {}
 
+void WalkingInterruptLogic::executeCommand() {
+  if (ctrl_arch_->getState() == MAGNETO_STATES::BALANCE) {
+    // ctrl_arch_->add_next_state(MAGNETO_STATES::ONE_STEP_WALKING, it);
+  }
+}
+
 // Process Interrupts here
-void WalkingInterruptLogic::processInterrupts() {   
+void WalkingInterruptLogic::processInterrupts() {
   if(b_button_pressed) {
     // std::cout << "[Walking Interrupt Logic] button pressed : " << pressed_button << std::endl;
     switch(pressed_button){
@@ -37,11 +43,19 @@ void WalkingInterruptLogic::processInterrupts() {
           // initialize trajectory_manager
           // ctrl_arch_->floating_base_lifting_up_manager_->
           // set stateMachine sequences
-          for(auto &it : motion_command_script_list_) {          
+          for(auto &it : motion_command_script_list_) {
             ctrl_arch_->add_next_state(MAGNETO_STATES::ONE_STEP_WALKING, it );  // *NOTE: action trace
           }
           // ctrl_arch_->add_next_state(MAGNETO_STATES::BALANCE, MotionCommand() );
         }
+      break;
+      // & Adding RL case handling
+      case 'r':
+        std::cout << "[Walking Interrupt Logic] button R pressed" << std::endl;
+        std::cout << "---------                           ---------" << std::endl;
+        std::cout << "---------     RL SCRIPT MOTION      ---------" << std::endl;
+        ctrl_arch_->add_next_state(MAGNETO_STATES::ONE_STEP_WALKING, motion_command_script_list_[0]);
+        // WalkingInterruptLogic::executeCommand(); // &REF
       break;
       case 'w':
         std::cout << "[Walking Interrupt Logic] button w pressed" << std::endl;

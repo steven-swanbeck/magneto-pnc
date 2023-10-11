@@ -23,9 +23,9 @@ void OneStepWalking::firstVisit() {
 
   ctrl_start_time_ = sp_->curr_time;
   // -- set current motion param
-  MotionCommand mc_curr_ = ctrl_arch_->get_motion_command();
+  MotionCommand mc_curr_ = ctrl_arch_->get_motion_command(); // &REF
   std::cout << ctrl_arch_->get_num_states() 
-            << "states left!" <<std::endl;
+            << " states left!" <<std::endl;
 
   moving_foot_idx_ = mc_curr_.get_moving_foot();
 

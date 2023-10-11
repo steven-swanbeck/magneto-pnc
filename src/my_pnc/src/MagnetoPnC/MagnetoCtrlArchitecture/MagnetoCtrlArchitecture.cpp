@@ -152,11 +152,14 @@ void MagnetoControlArchitecture::get_next_state_pair(StateIdentifier &_next_stat
   // DRACO & VALKIYRIE VERSION
   // return state_machines_[state_]->getNextState(); 
   states_sequence_mtx_.lock();
+
+  // std::cout << "[MagnetoControlArchitecture] inisde get_next_state_pair()\n";
   if(states_sequence_.empty()) {
      _next_state = MAGNETO_STATES::BALANCE;
      _next_motion_command = MotionCommand();
      std::cout<<"states_sequence_ is empty!!" << std::endl;
-     exit(0);
+    //  exit(0);
+    ready_for_next_input_ = true; //&REF
   }    
   else {
     StatePair next_state_pair = states_sequence_.front();
@@ -164,6 +167,7 @@ void MagnetoControlArchitecture::get_next_state_pair(StateIdentifier &_next_stat
     _next_motion_command = next_state_pair.second;
     states_sequence_.pop_front();       
   }
+
   states_sequence_mtx_.unlock();
   // std::cout<<"get_next_state = " << _next_state << std::endl;
 }

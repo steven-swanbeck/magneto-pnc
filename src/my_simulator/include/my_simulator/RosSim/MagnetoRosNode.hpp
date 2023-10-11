@@ -10,6 +10,11 @@
 #include <my_utils/IO/IOUtilities.hpp>
 #include <my_utils/Math/MathUtilities.hpp>
 #include <ros/ros.h>
+#include <std_msgs/String.h>
+#include <std_srvs/Trigger.h>
+#include <magneto_rl/FootPlacement.h>
+#include <geometry_msgs/Pose.h>
+#include <geometry_msgs/Point.h>
 
 class SimulatorParameter{
   public: 
@@ -74,8 +79,12 @@ class MagnetoRosNode : public dart::gui::osg::WorldNode {
     void customPreStep() override;
     void customPostStep() override;
 
+    void pluginInterface();
+
     // user button
     void enableButtonFlag(uint16_t key);
+
+    int num_rl_commands_received_;
 
    private:
 
@@ -130,7 +139,12 @@ class MagnetoRosNode : public dart::gui::osg::WorldNode {
 
     std::string motion_file_name_;
 
-
-
+    // +
+    // ros::NodeHandle nh_;
+    ros::Publisher status_pub_;
+    ros::ServiceClient next_step_client_;
+    bool should_use_rl_;
+    std::string walkset_;
+    int num_initial_steps_;
 
 };
