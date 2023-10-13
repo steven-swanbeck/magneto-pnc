@@ -32,6 +32,7 @@ class OneStepProgress : public osgGA::GUIEventHandler {
                 worldnode_->enableButtonFlag(button_pressed);
             }                     
         }
+
         return false;
     }
     MagnetoRosNode* worldnode_;
