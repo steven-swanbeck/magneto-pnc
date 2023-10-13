@@ -41,15 +41,17 @@ MagnetoRosNode::MagnetoRosNode(ros::NodeHandle& nh, const dart::simulation::Worl
     if (!nh_.param<bool>("/magneto/rl/active", should_use_rl_, false));
     if (should_use_rl_) {
         if (!nh_.param<std::string>("/magneto/simulation/walkset", walkset_, "config/Magneto/USERCONTROL.yaml"));
+        nh_.param<double>("/magneto/simulation/resume_duration", resume_duration_, 1.0);
     } else {
         nh_.param<std::string>("/magneto/simulation/walkset", walkset_, "config/Magneto/SIMULATIONWALK.yaml");
     }
     num_rl_commands_received_ = 0;
-
     status_pub_ = nh_.advertise<std_msgs::String>("/magneto/node/status", 1, this);
     
     if (should_use_rl_) {
         next_step_client_ = nh_.serviceClient<magneto_rl::FootPlacement>("/determine_next_step");
+        // trigger_rl_server_ = nh_.advertiseService("trigger_rl_update", &MagnetoRosNode::enterRLPlugin, this);
+        trigger_rl_server_ = nh_.advertiseService("trigger_rl_update", &MagnetoRosNode::enterRLPlugin, this);
     }
 
     // ---- SET control parameters %% motion script
@@ -65,6 +67,10 @@ MagnetoRosNode::MagnetoRosNode(ros::NodeHandle& nh, const dart::simulation::Worl
     // trq_ub_ = robot_->getForceUpperLimits();
     // std::cout<<"trq_lb_ = "<<trq_lb_.transpose() << std::endl;
     // std::cout<<"trq_ub_ = "<<trq_ub_.transpose() << std::endl;  
+
+    plugin_updated_ = true;
+    ready_for_rl_input_ = false;
+    sim_resume_time_ = ros::Time::now().toSec();
 }
 
 MagnetoRosNode::~MagnetoRosNode() {
@@ -91,22 +97,9 @@ void MagnetoRosNode::CheckRobotSkeleton(const dart::dynamics::SkeletonPtr& skel)
     }    
 }
 
-// !!!!!!!!!!
-// TODO figure out why there is a delay between the step I create and the one that is executed
-// - ie. why my inputs are delayed by one cycle and fix
-// - then create a function, perhaps using the "enableButtonFlag()" method to continue calling s on the sim until some condition is met
-// - once I have a good way of looping the action cycle and using updates provided on the set right then, I can think about doing the more fun stuff
-
 void MagnetoRosNode::customPostStep() {
     // & RL foot placement updating
-    if (should_use_rl_) {
-        // ROS_INFO_STREAM("Planner updates: " << (((MagnetoInterface*)interface_)->MonitorFootPlannerUpdate()) << ", RL Commands: " << num_rl_commands_received_ <<  ", initial steps: " << num_initial_steps_);
-        
-        // TODO think about this logic and whether I want to keep it or if it needs to be changed
-        if ((((MagnetoInterface*)interface_)->MonitorFootPlannerUpdate() - num_initial_steps_) == num_rl_commands_received_) {
-            MagnetoRosNode::pluginInterface();
-        }
-    }
+
 }
 
 void MagnetoRosNode::enableButtonFlag(uint16_t key) {
@@ -114,10 +107,20 @@ void MagnetoRosNode::enableButtonFlag(uint16_t key) {
     ((MagnetoInterface*)interface_) -> interrupt_ -> setFlags(key);
 }
 
-
+// & Input for changing global variable to enter the pluginInterface
+// bool MagnetoInterface::enterRLPlugin (magneto_rl::FootPlacementAction::Request &req, magneto_rl::FootPlacementAction::Response &res) {
+bool MagnetoRosNode::enterRLPlugin (std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res) {
+    // ROS_INFO_STREAM("Setting ready_for_rl_input to true!");
+    ready_for_rl_input_ = true;
+    res.success=true;
+    return true;
+}
 
 // & Primary RL plugin interface function
 void MagnetoRosNode::pluginInterface() {
+    plugin_updated_ = true;
+    // ready_for_rl_input_ = false;
+    std::cout<<" plugin_updated_  = " << plugin_updated_ << std::endl;
     ROS_WARN_STREAM("Inside pluginInterface()");
     std_msgs::String status;
     status.data = "In plot foot step result";
@@ -195,26 +198,90 @@ void MagnetoRosNode::pluginInterface() {
     md_temp.pose = POSE_DATA(pos_temp, ori_temp, is_bodyframe);
 
     ((MagnetoInterface*)interface_)->ClearWalkMotions();
-    // TODO try to access the set walk motions to understand what's going on
-    // ((MagnetoInterface*)interface_)->
-    ((MagnetoInterface*)interface_)->AddScriptWalkMotion(link_idx, md_temp);
+    ((MagnetoInterface*)interface_)->AddAndExecuteMotion(link_idx, md_temp);
 
     num_rl_commands_received_++;
+    ready_for_rl_input_ = false;
 }
 
 
 
 void MagnetoRosNode::customPreStep() {
     // & RL foot placement updating
+    // ~~~
+    // std_msgs::String status;
+    // std::stringstream ss;
+    // ss << "Ready for rl_input: " << ready_for_rl_input_;
+    // status.data = ss.str();
+    // status_pub_.publish(status);
+    // ~~~
+
+    // + After meeting with Jee-eun
     // if (should_use_rl_) {
-    //     // std::cout << "Planner updates: " << (((MagnetoInterface*)interface_)->MonitorFootPlannerUpdate()) << ", RL Commands: " << num_rl_commands_received_ <<  ", initial steps: " << num_initial_steps_ << "\n";
+    //     ROS_INFO_STREAM("Entered RL logic loop!");
+    //     ROS_INFO_STREAM("plugin_updated_: " << plugin_updated_);
+    //     ROS_INFO_STREAM("end of state: " << ((MagnetoInterface*)interface_)->MonitorEndofState());
     //     // ROS_INFO_STREAM("Planner updates: " << (((MagnetoInterface*)interface_)->MonitorFootPlannerUpdate()) << ", RL Commands: " << num_rl_commands_received_ <<  ", initial steps: " << num_initial_steps_);
         
-    //     // TODO think about this logic and whether I want to keep it
-    //     if ((((MagnetoInterface*)interface_)->MonitorFootPlannerUpdate() - num_initial_steps_) == num_rl_commands_received_) {
+    //     // TODO think about this logic and whether I want to keep it or if it needs to be changed
+    //     // if ((((MagnetoInterface*)interface_)->MonitorFootMotionEndUpdate() - num_initial_steps_) == num_rl_commands_received_) {
+    //     if (!plugin_updated_ && ((MagnetoInterface*)interface_)->MonitorEndofState()) {
     //         MagnetoRosNode::pluginInterface();
     //     }
+
+    //     if (plugin_updated_ && !((MagnetoInterface*)interface_)->MonitorEndofState()){
+    //         plugin_updated_ = false;
+    //         std::cout<<" plugin_updated_  = " << plugin_updated_ << std::endl;            
+    //     }
     // }
+    
+    // + Works decently well with ROS
+    // if (should_use_rl_) {
+    //     if (!plugin_updated_ && ((MagnetoInterface*)interface_)->MonitorEndofState()) {
+    //         // if (!ready_for_rl_input_) {
+    //         //     ROS_INFO_STREAM("Waiting for ready_for_rl_update request; simulation is paused");
+    //         // }
+    //         while (!ready_for_rl_input_) {
+    //             ROS_INFO_STREAM("Waiting for ready_for_rl_update request; simulation is paused");
+    //         }
+
+    //         MagnetoRosNode::pluginInterface();
+    //         // TODO when we exit here, probably want to use a timer to allow physics to resolve, handle foot locations and such on the other end
+    //     }
+
+    //     if (plugin_updated_ && !((MagnetoInterface*)interface_)->MonitorEndofState()){
+    //         plugin_updated_ = false;
+    //         std::cout<<" plugin_updated_  = " << plugin_updated_ << std::endl;            
+    //     }
+    // }
+
+    // + Devel
+    if (should_use_rl_) {
+        if (((MagnetoInterface*)interface_)->MonitorEndofState()) {
+            ready_for_next_step_ = true;
+        }
+
+        if ((ros::Time::now().toSec() - sim_resume_time_) <= resume_duration_) {
+            ROS_INFO_STREAM("Waiting for physics to resolve given duration " << resume_duration_ << "(" << (ros::Time::now().toSec() - sim_resume_time_) << "/" << resume_duration_ << ")");
+        }
+        // if (!plugin_updated_ && ((MagnetoInterface*)interface_)->MonitorEndofState()) {
+        else if (!plugin_updated_ && ready_for_next_step_) {
+            ready_for_next_step_ = false;
+
+            while (!ready_for_rl_input_) {
+                ROS_INFO_STREAM("Waiting for ready_for_rl_update request; simulation is paused");
+            }
+
+            MagnetoRosNode::pluginInterface();
+            sim_resume_time_ = ros::Time::now().toSec();
+        }
+
+        if (plugin_updated_ && !((MagnetoInterface*)interface_)->MonitorEndofState()){
+            plugin_updated_ = false;
+            std::cout<<" plugin_updated_  = " << plugin_updated_ << std::endl;            
+        }
+    }
+    // &&&
 
     static Eigen::VectorXd qInit = robot_->getPositions();
 
@@ -530,7 +597,7 @@ void MagnetoRosNode::ReadMotions_() {
             md_temp.pose = POSE_DATA(pos_temp, ori_temp, is_bodyframe);
             // interface_->(WalkingInterruptLogic*)interrupt_
             //             ->motion_command_script_list_
-            //             .push_back(MotionCommand(link_idx,md_temp));
+            //             .push_back(MotionCommand(link_idx, md_temp));
             ((MagnetoInterface*)interface_)->AddScriptWalkMotion(link_idx, md_temp); // *NOTE: action trace
         }
 

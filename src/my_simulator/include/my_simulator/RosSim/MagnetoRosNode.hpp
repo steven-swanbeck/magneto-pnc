@@ -13,6 +13,7 @@
 #include <std_msgs/String.h>
 #include <std_srvs/Trigger.h>
 #include <magneto_rl/FootPlacement.h>
+#include <magneto_rl/FootPlacementAction.h>
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/Point.h>
 
@@ -144,7 +145,17 @@ class MagnetoRosNode : public dart::gui::osg::WorldNode {
     ros::Publisher status_pub_;
     ros::ServiceClient next_step_client_;
     bool should_use_rl_;
+    bool ready_for_rl_input_;
     std::string walkset_;
     int num_initial_steps_;
+    bool plugin_updated_;
 
+    ros::ServiceServer trigger_rl_server_;
+    // bool enterRLPlugin (magneto_rl::FootPlacementAction::Request &req, magneto_rl::FootPlacementAction::Response &res);
+    bool enterRLPlugin (std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res);
+
+    double sim_resume_time_;
+    double resume_duration_;
+
+    bool ready_for_next_step_;
 };

@@ -1,10 +1,11 @@
 magneto:
   rl:
-    active:         True
+    active:            True
   simulation:
-    walkset:        config/Magneto/USERCONTROLWALK.yaml
+    walkset:           config/Magneto/USERCONTROLWALK.yaml
     link_idx:
-      AR:           23
-      AL:           14
-      BL:           32
-      BR:           41
+      AR:              23
+      AL:              14
+      BL:              32
+      BR:              41
+    resume_duration:   3 # seconds

@@ -8,7 +8,7 @@
 #include <dart/utils/utils.hpp>
 #include "ros/ros.h"
 
-
+// &REF to respawn robot after a fall, look at set_positions function
 class OneStepProgress : public osgGA::GUIEventHandler {
    public:
     OneStepProgress(MagnetoRosNode* worldnode) : worldnode_(worldnode) {}
@@ -20,7 +20,6 @@ class OneStepProgress : public osgGA::GUIEventHandler {
         if (ea.getEventType() == osgGA::GUIEventAdapter::KEYUP) {            
             if ( ea.getKey() == 'f') {
                 int numStepProgress(50);
-                ROS_WARN_STREAM("f entered");      
                 for (int i = 0; i < numStepProgress; ++i) {
                     worldnode_->customPreStep();
                     worldnode_->getWorld()->step();
@@ -28,7 +27,6 @@ class OneStepProgress : public osgGA::GUIEventHandler {
                 }
                 return true;
             } else {
-                ROS_WARN_STREAM("other entered");
                 uint16_t button_pressed = ea.getKey();
                 std::cout << "button(" << (char)button_pressed << ")  pressed handled @ Main.cpp" << std::endl;
                 worldnode_->enableButtonFlag(button_pressed);
@@ -41,6 +39,7 @@ class OneStepProgress : public osgGA::GUIEventHandler {
 
 
 void setWorld(dart::simulation::WorldPtr& world, const SimulatorParameter& sim_param) {
+// dart::dynamics::SkeletonPtr setWorld(dart::simulation::WorldPtr& world, const SimulatorParameter& sim_param) {
 
     // add robot & ground
     dart::utils::DartLoader urdfLoader;
@@ -106,15 +105,53 @@ void setWorld(dart::simulation::WorldPtr& world, const SimulatorParameter& sim_p
 
     // Print Model Info
     // printRobotModel(robot);
+    
+    // return robot;
 }
 
 
+// TODO add in ability to respawn robot when it falls!
+// bool handleRobotRespawn (std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res) {
+//     respawnRobot
+// }
+
+// // bool respawnRobot(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res) {
+// void respawnRobot(dart::dynamics::SkeletonPtr &robot) {
+//     // Initial configuration
+//     Eigen::VectorXd q = robot->getPositions();
+//     q.segment(0,6) = sim_param.q_virtual_init_.head(6);
+
+//     std::string coxa("coxa_joint");
+//     std::string femur("femur_joint");
+//     std::string tibia("tibia_joint");
+//     std::string foot1("foot_joint_1");
+//     std::string foot2("foot_joint_2");
+//     std::string foot3("foot_joint_3"); 
+
+//     const std::array<std::string, 4> foot_name = {"AL_", "BL_", "AR_", "BR_"};
+
+//     double femur_joint_init = 1./10.*M_PI_2; // -1./10.*M_PI_2;
+//     double tibia_joint_init = -11./10.*M_PI_2; // -9./10.*M_PI_2;
+
+//     for(int i=0; i<foot_name.size(); i++) {
+//         q[robot->getDof(foot_name[i] + coxa)->getIndexInSkeleton()] = 0.0;
+//         q[robot->getDof(foot_name[i] + femur)->getIndexInSkeleton()] = femur_joint_init;
+//         q[robot->getDof(foot_name[i] + tibia)->getIndexInSkeleton()] = tibia_joint_init;
+//         q[robot->getDof(foot_name[i] + foot1)->getIndexInSkeleton()] = 0.0;
+//         q[robot->getDof(foot_name[i] + foot2)->getIndexInSkeleton()] = 0.0;
+//         q[robot->getDof(foot_name[i] + foot3)->getIndexInSkeleton()] = 0.0;
+//     }
+//     robot->setPositions(q);
+// }
 
 
 int main(int argc, char** argv) {
 
     ros::init(argc, argv, "magneto_simulator");
     ros::NodeHandle nh;
+
+    ros::AsyncSpinner spinner(1);
+    spinner.start();
     
     std::string sim_config_filename; 
     if(argc < 2) {
@@ -130,6 +167,7 @@ int main(int argc, char** argv) {
     // Generate world and add skeletons
     dart::simulation::WorldPtr world(new dart::simulation::World);
     setWorld(world, sim_param);
+    // robot = setWorld(world, sim_param);
 
     // =========================================================================
     // Create and Set Viewer
@@ -164,6 +202,7 @@ int main(int argc, char** argv) {
     viewer.setCameraManipulator(viewer.getCameraManipulator());
     viewer.run();
 
-    ros::spin();
+    // ros::spin();
+    ros::waitForShutdown();
     return 0;
 }

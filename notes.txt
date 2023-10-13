@@ -75,3 +75,26 @@ catkin_make
 in my_utils package, open generated Configuration.h and change #define THIS_COM to be the the dir before the clone
 in my_utils package, edit the CMakeLists.txt file to comment out lines 69 and 70
 
+
+QUESTIONS TO ASK:
+-start simulation not paused?
+-action simulation desynchronization
+-wrapping as point model in custom gym env
+-cycling node instead of having to kill & restart
+-which information to send using gym? -> magnetic forces at each foot, foot locations, body pose, goal location/pose, whether or not has fallen
+-wrapping gym updates in rosservice calls
+-tracking magnetic forces and foot placements in the gym env? keep memory of past states? use RNN for handling input of variable size (or LSTM?)
+-how to trigger just one step in the simulation?
+
+WHAT I REALLY WANT:
+-single function I can call within the MagnetoRosNode that accepts a link_idx and MOTION_DATA and executes it on the robot then returns some state information
+-service call to be triggered from within the python code to use Gym
+-way to loop the simulation/respawn the robot in a target location automatically
+
+-launch node, robot spawns, simulation unpauses, then robot hold position until triggered (or maybe simulation only unpauses when service is triggered then pauses again when returns?)
+-make service calls with link_idx and MOTION_DATA, robot executes that command right then, waits a second or two for physics to resolve, then simulation pauses, then sends relevant information back in service return
+-when robot falls, Python code will detect it and restart the process, need simulation to repsawn the robot in the right starting spot and pause to be ready for next step
+-maybe separate service call when fall detected to trigger reset?
+
+-create global variable that determines whether we must enter the RL function and set it false right when we do so we avoid entering it in the next iteration  
+-use a service call to set that global variable true and enter the function

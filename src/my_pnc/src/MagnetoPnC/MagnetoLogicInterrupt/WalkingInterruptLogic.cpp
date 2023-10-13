@@ -54,6 +54,7 @@ void WalkingInterruptLogic::processInterrupts() {
         std::cout << "[Walking Interrupt Logic] button R pressed" << std::endl;
         std::cout << "---------                           ---------" << std::endl;
         std::cout << "---------     RL SCRIPT MOTION      ---------" << std::endl;
+        std::cout << "Current size of motion_command_script_list_ is " << motion_command_script_list_.size() << std::endl;
         ctrl_arch_->add_next_state(MAGNETO_STATES::ONE_STEP_WALKING, motion_command_script_list_[0]);
         // WalkingInterruptLogic::executeCommand(); // &REF
       break;

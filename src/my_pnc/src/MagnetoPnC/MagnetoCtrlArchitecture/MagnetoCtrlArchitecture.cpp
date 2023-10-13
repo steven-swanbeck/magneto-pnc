@@ -55,6 +55,7 @@ MagnetoControlArchitecture::MagnetoControlArchitecture(RobotSystem* _robot)
   prev_state_ = state_;
   motion_command_ = MotionCommand();
   b_state_first_visit_ = true;
+  ready_for_next_input_ = true;
 
   _InitializeParameters();
 }
@@ -116,7 +117,9 @@ void MagnetoControlArchitecture::getCommand(void* _command) {
     // state_ = state_machines_[state_]->getNextState();
     get_next_state_pair(state_, motion_command_);
     b_state_first_visit_ = true;
+    sp_->check_end_of_state ++;
   }
+  else ready_for_next_input_ = false;
 };
 
 
@@ -180,6 +183,7 @@ void MagnetoControlArchitecture::add_next_state(int _state, const MotionCommand 
 void MagnetoControlArchitecture::add_next_state(StatePair _state_pair) {
   states_sequence_mtx_.lock();
   states_sequence_.push_back(_state_pair);
+  ready_for_next_input_ = false;
   states_sequence_mtx_.unlock();
 }
 

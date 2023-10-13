@@ -59,7 +59,7 @@ bool MotionCommand::get_foot_motion_command(MOTION_DATA &_motion_data) {
     return false;
 }
 
- bool MotionCommand::get_foot_motion_command(MOTION_DATA &_motion_data, TARGET_LINK_IDX &_idx) {
+bool MotionCommand::get_foot_motion_command(MOTION_DATA &_motion_data, TARGET_LINK_IDX &_idx) {
     for(auto &[idx, motion_data] : motion_sets_) {
         if(idx > 0) {
             _idx = idx;

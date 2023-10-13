@@ -45,6 +45,7 @@ MagnetoStateProvider::MagnetoStateProvider(RobotSystem* _robot) {
     com_pos_des_step = Eigen::VectorXd::Zero(3);
     check_com_planner_updated = 0;
     check_foot_planner_updated = 0;
+    check_end_of_state = 0;
 
     com_pos = Eigen::VectorXd::Zero(3);
     com_vel = Eigen::VectorXd::Zero(3);

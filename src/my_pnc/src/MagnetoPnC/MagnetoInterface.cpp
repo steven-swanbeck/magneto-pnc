@@ -31,7 +31,7 @@ MagnetoInterface::MagnetoInterface() : EnvInterface() {
 
     control_architecture_ = new MagnetoControlArchitecture(robot_);
     interrupt_ = new WalkingInterruptLogic(
-          static_cast<MagnetoControlArchitecture*>(control_architecture_));    
+            static_cast<MagnetoControlArchitecture*>(control_architecture_));    
 
     sp_->stance_foot = MagnetoBodyNode::base_link; // todo base_link
 
@@ -44,6 +44,7 @@ MagnetoInterface::MagnetoInterface() : EnvInterface() {
     prev_planning_moment_ = 0.;
     check_com_planner_updated = 0;
     check_foot_planner_updated = 0;
+
 
     _ParameterSetting(); //text_ = new Test();
 
@@ -117,11 +118,9 @@ void MagnetoInterface::getCommand(void* _data, void* _command) {
     // std::cout << "[MagnetoInterface] inisde getCommand()\n";
     MagnetoCommand* cmd = ((MagnetoCommand*)_command);
     MagnetoSensorData* data = ((MagnetoSensorData*)_data);
-    // ! Perhaps this initialization is blocking us from triggering getCommand via the control architecture?
     if(!_Initialization(data, cmd)) {
         state_estimator_->Update(data); // robot skelPtr in robotSystem updated 
         interrupt_->processInterrupts();
-        // TODO add in new function to add commands here
         control_architecture_->getCommand(cmd);
         
         if(!_CheckCommand(cmd)) { _SetStopCommand(data, cmd); }    
@@ -229,6 +228,16 @@ int MagnetoInterface::MonitorFootPlannerUpdate() {
     return sp_->check_foot_planner_updated;
 }
 
+int MagnetoInterface::MonitorFootMotionEndUpdate() {
+    // std::cout << sp_->check_foot_planner_updated << "\n";
+    return sp_->check_end_of_state;
+}
+
+bool MagnetoInterface::MonitorEndofState() {
+    return ((MagnetoControlArchitecture*)control_architecture_)->ready_for_next_input_;
+}
+
+
 void MagnetoInterface::GetCoMTrajectory(
     std::vector<Eigen::VectorXd>& com_des_list) {
     com_des_list = sp_->com_des_list;
@@ -284,8 +293,12 @@ void MagnetoInterface::AddScriptWalkMotion(int _link_idx,
     // motion_param->set_walking_pattern(_moving_foot, _pos, _ori, _motion_period, _is_bodyframe);
     // ((StaticWalkingTest*)test_)->addNextStep(motion_param); 
     MotionCommand motion_command = MotionCommand(_link_idx,_motion_data);
+    // std::cout << "Adding motion command! List size is currently " << ((WalkingInterruptLogic*)interrupt_)->motion_command_script_list_.size() << "\n";
+    // MagnetoInterface::ClearWalkMotions();
+    // std::cout << "Attempted to clear motion commands! List size is currently " << ((WalkingInterruptLogic*)interrupt_)->motion_command_script_list_.size() << "\n";
     ((WalkingInterruptLogic*)interrupt_)
         ->motion_command_script_list_.push_back(motion_command); // *NOTE: action trace
+    std::cout << "Attempted to add motion command! List size is currently " << ((WalkingInterruptLogic*)interrupt_)->motion_command_script_list_.size() << "\n";
 }
 
 void MagnetoInterface::ClearWalkMotions() {
@@ -293,3 +306,8 @@ void MagnetoInterface::ClearWalkMotions() {
 }
 
 
+void MagnetoInterface::AddAndExecuteMotion(int _link_idx, 
+                                        const MOTION_DATA& _motion_data) {
+    MotionCommand motion_command = MotionCommand(_link_idx,_motion_data);
+    ((MagnetoControlArchitecture*)control_architecture_)->add_next_state(MAGNETO_STATES::ONE_STEP_WALKING, motion_command);
+}

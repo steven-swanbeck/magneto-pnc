@@ -81,6 +81,7 @@ class MagnetoStateProvider {
     Eigen::VectorXd foot_pos_init;
     Eigen::VectorXd foot_pos_target;
     int check_foot_planner_updated;
+    int check_end_of_state;
     // magentic force
     Eigen::VectorXd arf_magenetic_wrench;
     Eigen::VectorXd alf_magenetic_wrench;
