@@ -145,6 +145,55 @@ void setWorld(dart::simulation::WorldPtr& world, const SimulatorParameter& sim_p
 //     robot->setPositions(q);
 // }
 
+// void buildSim (ros::NodeHandle nh, SimulatorParameter sim_param)
+// {
+//     // Generate world and add skeletons
+//     dart::simulation::WorldPtr world(new dart::simulation::World);
+//     setWorld(world, sim_param);
+//     // robot = setWorld(world, sim_param);
+
+//     // =========================================================================
+//     // Create and Set Viewer
+//     // =========================================================================
+
+//     // Wrap a worldnode
+//     osg::ref_ptr<MagnetoRosNode> node = new MagnetoRosNode(nh, world);
+//     node->setNumStepsPerCycle(10);
+
+//     // Create and Set Viewer
+//     dart::gui::osg::Viewer viewer;
+//     viewer.addWorldNode(node);
+//     viewer.simulate(false);
+//     viewer.switchHeadlights(false);
+//     viewer.getLightSource(0)->getLight()->setPosition(
+//         ::osg::Vec4(0.7, 0.14, 0.7, 0.0));
+//     viewer.getCamera()->setClearColor(osg::Vec4(0.93f, 0.95f, 1.0f, 0.95f));
+//     viewer.getCamera()->setClearMask(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+//     viewer.addEventHandler(new OneStepProgress(node));
+
+//     if (sim_param.is_record_) {
+//         std::cout << "[Video Record Enable]" << std::endl;
+//         viewer.record(THIS_COM "/ExperimentVideo");
+//     }
+
+//     // viewer.setUpViewInWindow(0, 0, 2880, 1800);
+//     viewer.setUpViewInWindow(1440, 0, 500, 500);
+//     viewer.getCameraManipulator()->setHomePosition(
+//                             ::osg::Vec3(5.14, 2.28, 3.0) * 1.5, 
+//                             ::osg::Vec3(0.0, 0.2, 0.5),
+//                             ::osg::Vec3(0.0, 0.0, 1.0));
+//     viewer.setCameraManipulator(viewer.getCameraManipulator());
+//     viewer.run();
+// }
+
+// bool resetWorld () {
+//     buildSim
+// }
+// TODO need to restructure the stuff in this folder to instead have a class-type structure so I can reference and pass global variables
+// TODO then create a function that can take in the sim stuff and delete it all, then start a new one
+// TODO downside is that I will need to focus on the window and unpause it each time, which I may need to build a Python service to do unfortunately
+// TODO see if with doing this, I can simply delete the robot in the scene and spawn a new one?
+// TODO alternatively, look into using the roslaunch api to start the sim, click on screen where necessary, and re-update the service proxies
 
 int main(int argc, char** argv) {
 
@@ -164,7 +213,9 @@ int main(int argc, char** argv) {
     }
     SimulatorParameter sim_param(sim_config_filename);
 
-    
+    // buildSim(nh, sim_param);
+
+    // ~~~
     // Generate world and add skeletons
     dart::simulation::WorldPtr world(new dart::simulation::World);
     setWorld(world, sim_param);
@@ -197,11 +248,13 @@ int main(int argc, char** argv) {
     // viewer.setUpViewInWindow(0, 0, 2880, 1800);
     viewer.setUpViewInWindow(1440, 0, 500, 500);
     viewer.getCameraManipulator()->setHomePosition(
-                            ::osg::Vec3(5.14, 2.28, 3.0) * 1.5, 
+                            // ::osg::Vec3(5.14, 2.28, 3.0) * 1.5, 
+                            ::osg::Vec3(3.14, 3.28, 3.0), 
                             ::osg::Vec3(0.0, 0.2, 0.5),
                             ::osg::Vec3(0.0, 0.0, 1.0));
     viewer.setCameraManipulator(viewer.getCameraManipulator());
     viewer.run();
+    // ~~~
 
     // ros::spin();
     ros::waitForShutdown();

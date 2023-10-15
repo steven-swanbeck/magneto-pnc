@@ -16,6 +16,10 @@
 #include <magneto_rl/FootPlacementAction.h>
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/Point.h>
+#include <magneto_rl/UpdateMagnetoAction.h>
+#include <magneto_rl/ReportMagnetoState.h>
+#include <magneto_rl/ResetMagnetoSim.h>
+#include <magneto_rl/FootState.h>
 
 class SimulatorParameter{
   public: 
@@ -144,18 +148,29 @@ class MagnetoRosNode : public dart::gui::osg::WorldNode {
     // ros::NodeHandle nh_;
     ros::Publisher status_pub_;
     ros::ServiceClient next_step_client_;
+    ros::ServiceServer trigger_rl_server_;
+    ros::ServiceServer report_state_server_;
+    ros::ServiceServer action_command_server_;
+    ros::ServiceServer sim_reset_server_;
+
     bool should_use_rl_;
     bool ready_for_rl_input_;
     std::string walkset_;
     int num_initial_steps_;
     bool plugin_updated_;
-
-    ros::ServiceServer trigger_rl_server_;
-    // bool enterRLPlugin (magneto_rl::FootPlacementAction::Request &req, magneto_rl::FootPlacementAction::Response &res);
-    bool enterRLPlugin (std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res);
-
     double sim_resume_time_;
     double resume_duration_;
-
     bool ready_for_next_step_;
+    
+    int latest_link_idx_;
+    MOTION_DATA latest_motion_data_;
+
+    // bool enterRLPlugin (magneto_rl::FootPlacementAction::Request &req, magneto_rl::FootPlacementAction::Response &res);
+    bool enterRLPlugin (std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res);
+    bool reportStateInformation(magneto_rl::ReportMagnetoState::Request &req, magneto_rl::ReportMagnetoState::Response &res);
+    bool updateActionCommand(magneto_rl::UpdateMagnetoAction::Request &req, magneto_rl::UpdateMagnetoAction::Response &res);
+    void enactActionCommand ();
+    // void resetSim();
+    bool resetSim(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res);
+
 };

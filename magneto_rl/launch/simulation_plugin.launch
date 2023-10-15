@@ -1,8 +1,8 @@
 <launch>
     <arg name="set" default="orig"/>
 
-    <!-- <arg name="magneto_sim_args" value="config/Magneto/SIMULATIONWALK.yaml" if="$(eval set == 'orig')"/> -->
-    <arg name="magneto_sim_args" value="config/Magneto/USERCONTROLWALK.yaml" if="$(eval set == 'orig')"/>
+    <arg name="magneto_sim_args" value="config/Magneto/SIMULATIONWALK.yaml" if="$(eval set == 'orig')"/>
+    <!-- <arg name="magneto_sim_args" value="config/Magneto/USERCONTROLWALK.yaml" if="$(eval set == 'orig')"/> -->
     <arg name="magneto_sim_args" value="config/Magneto/USERCONTROLWALK.yaml" if="$(eval set == 'rl')"/>
 
     <group unless="$(eval set == 'orig')">

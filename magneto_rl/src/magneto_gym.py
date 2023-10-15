@@ -55,6 +55,21 @@ class MagnetoEnv (gym.env):
         # TODO
         # . Randomly seed magnetism (or more likely weak magnetism in a subtractive sense) to the wall in strong shapes and grow out from all of these accordingly
         # . Add a visualization method to see how this is working
+        
+        raise NotImplementedError
+    
+    def begin_episode ():
+        # TODO
+        # . Using roslaunch api and pyautogui, begin and manage a new simulation episode
+        # . Let the robot perform its initial settling before turning control back to code for other functionality
+        
+        raise NotImplementedError
+    
+    def terminate_episode ():
+        # TODO
+        # . Using pyautogui, kill a currently running simulation episode
+        
+        raise NotImplementedError
     
     # TODO misc.
     # & Think about how to incorporate uncertainty about where the foot will actually land given an instruction since it often does not perfectly map to the goal

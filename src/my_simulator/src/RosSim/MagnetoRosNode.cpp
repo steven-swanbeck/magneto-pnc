@@ -52,6 +52,9 @@ MagnetoRosNode::MagnetoRosNode(ros::NodeHandle& nh, const dart::simulation::Worl
         next_step_client_ = nh_.serviceClient<magneto_rl::FootPlacement>("/determine_next_step");
         // trigger_rl_server_ = nh_.advertiseService("trigger_rl_update", &MagnetoRosNode::enterRLPlugin, this);
         trigger_rl_server_ = nh_.advertiseService("trigger_rl_update", &MagnetoRosNode::enterRLPlugin, this);
+        report_state_server_ = nh_.advertiseService("get_magneto_state", &MagnetoRosNode::reportStateInformation, this);
+        action_command_server_ = nh_.advertiseService("set_magneto_action", &MagnetoRosNode::updateActionCommand, this);
+        sim_reset_server_ = nh_.advertiseService("reset_magneto_sim", &MagnetoRosNode::resetSim, this);
     }
 
     // ---- SET control parameters %% motion script
@@ -98,8 +101,6 @@ void MagnetoRosNode::CheckRobotSkeleton(const dart::dynamics::SkeletonPtr& skel)
 }
 
 void MagnetoRosNode::customPostStep() {
-    // & RL foot placement updating
-
 }
 
 void MagnetoRosNode::enableButtonFlag(uint16_t key) {
@@ -204,57 +205,185 @@ void MagnetoRosNode::pluginInterface() {
     ready_for_rl_input_ = false;
 }
 
+// TODO fill in these functions and make sure they work as intended
+bool MagnetoRosNode::reportStateInformation(magneto_rl::ReportMagnetoState::Request &req, magneto_rl::ReportMagnetoState::Response &res) {
+    // WIP
+    // . Base pose
+    Eigen::Quaternion<double> q_base 
+                            = Eigen::Quaternion<double>( 
+                                robot_->getBodyNode(MagnetoBodyNode::base_link)
+                                        ->getWorldTransform().linear());
+    Eigen::VectorXd p_base = robot_->getBodyNode(MagnetoBodyNode::base_link)->getWorldTransform().translation();
+    
+    geometry_msgs::Pose base_pose;
+    base_pose.position.x = p_base.x();
+    base_pose.position.y = p_base.y();
+    base_pose.position.z = p_base.z();
+    base_pose.orientation.w = q_base.w();
+    base_pose.orientation.x = q_base.x();
+    base_pose.orientation.y = q_base.y();
+    base_pose.orientation.z = q_base.z();
+
+    // . ar foot information
+    magneto_rl::FootState state_ar;
+    Eigen::Quaternion<double> q_ar 
+                            = Eigen::Quaternion<double>( 
+                                robot_->getBodyNode(MagnetoBodyNode::AR_foot_link)
+                                        ->getWorldTransform().linear());
+    Eigen::VectorXd p_ar = robot_->getBodyNode(MagnetoBodyNode::AR_foot_link)->getWorldTransform().translation();
+    
+    geometry_msgs::Pose pose_ar;
+    pose_ar.position.x = p_ar.x();
+    pose_ar.position.y = p_ar.y();
+    pose_ar.position.z = p_ar.z();
+    pose_ar.orientation.w = q_ar.w();
+    pose_ar.orientation.x = q_ar.x();
+    pose_ar.orientation.y = q_ar.y();
+    pose_ar.orientation.z = q_ar.z();
+
+    state_ar.pose = pose_ar;
+    
+    // . al foot information
+    magneto_rl::FootState state_al;
+    Eigen::Quaternion<double> q_al 
+                            = Eigen::Quaternion<double>( 
+                                robot_->getBodyNode(MagnetoBodyNode::AL_foot_link)
+                                        ->getWorldTransform().linear());
+    Eigen::VectorXd p_al = robot_->getBodyNode(MagnetoBodyNode::AL_foot_link)->getWorldTransform().translation();
+    
+    geometry_msgs::Pose pose_al;
+    pose_al.position.x = p_al.x();
+    pose_al.position.y = p_al.y();
+    pose_al.position.z = p_al.z();
+    pose_al.orientation.w = q_al.w();
+    pose_al.orientation.x = q_al.x();
+    pose_al.orientation.y = q_al.y();
+    pose_al.orientation.z = q_al.z();
+
+    state_al.pose = pose_al;
+
+    // . bl foot information
+    magneto_rl::FootState state_bl;
+    Eigen::Quaternion<double> q_bl
+                            = Eigen::Quaternion<double>( 
+                                robot_->getBodyNode(MagnetoBodyNode::BL_foot_link)
+                                        ->getWorldTransform().linear());
+    Eigen::VectorXd p_bl = robot_->getBodyNode(MagnetoBodyNode::BL_foot_link)->getWorldTransform().translation();
+    
+    geometry_msgs::Pose pose_bl;
+    pose_bl.position.x = p_bl.x();
+    pose_bl.position.y = p_bl.y();
+    pose_bl.position.z = p_bl.z();
+    pose_bl.orientation.w = q_bl.w();
+    pose_bl.orientation.x = q_bl.x();
+    pose_bl.orientation.y = q_bl.y();
+    pose_bl.orientation.z = q_bl.z();
+
+    state_bl.pose = pose_bl;
+
+    // . br foot information
+    magneto_rl::FootState state_br;
+    Eigen::Quaternion<double> q_br
+                            = Eigen::Quaternion<double>( 
+                                robot_->getBodyNode(MagnetoBodyNode::BR_foot_link)
+                                        ->getWorldTransform().linear());
+    Eigen::VectorXd p_br = robot_->getBodyNode(MagnetoBodyNode::BR_foot_link)->getWorldTransform().translation();
+
+    geometry_msgs::Pose pose_br;
+    pose_br.position.x = p_br.x();
+    pose_br.position.y = p_br.y();
+    pose_br.position.z = p_br.z();
+    pose_br.orientation.w = q_br.w();
+    pose_br.orientation.x = q_br.x();
+    pose_br.orientation.y = q_br.y();
+    pose_br.orientation.z = q_br.z();
+
+    state_br.pose = pose_br;
+
+    // . composition into service response
+    res.body_pose = base_pose;
+    res.AR_state = state_ar;
+    res.AL_state = state_al;
+    res.BL_state = state_bl;
+    res.BR_state = state_br;
+
+    return 1;
+}
+
+bool MagnetoRosNode::updateActionCommand(magneto_rl::UpdateMagnetoAction::Request &req, magneto_rl::UpdateMagnetoAction::Response &res) {
+    // WIP
+    ready_for_rl_input_ = true;
+
+    latest_link_idx_ = req.link_idx;
+    Eigen::VectorXd pos_command(3);
+    Eigen::VectorXd ori_command(4);
+    ori_command << req.foot_pose.orientation.w, req.foot_pose.orientation.x, req.foot_pose.orientation.y, req.foot_pose.orientation.z;
+    pos_command << req.foot_pose.position.x, req.foot_pose.position.y, req.foot_pose.position.z;
+    latest_motion_data_.motion_period = 0.4;
+    latest_motion_data_.swing_height = 0.05;
+    bool is_bodyframe {true};
+    latest_motion_data_.pose = POSE_DATA(pos_command, ori_command, is_bodyframe);
+
+    res.success = true;
+    return 1;
+}
+
+void MagnetoRosNode::enactActionCommand () {
+    plugin_updated_ = true;
+    ((MagnetoInterface*)interface_)->ClearWalkMotions();
+    ((MagnetoInterface*)interface_)->AddAndExecuteMotion(latest_link_idx_, latest_motion_data_);
+    num_rl_commands_received_++;
+    ready_for_rl_input_ = false;
+}
+
+bool MagnetoRosNode::resetSim(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res) {
+    // TODO
+    ROS_INFO_STREAM("Inside resetSim()");
+
+    // while ((ros::Time::now().toSec() - sim_resume_time_) <= 10) {
+    //     ROS_INFO_STREAM("WAITING!");
+    // }
+
+    Eigen::VectorXd starting_pose;
+    starting_pose << 0.0, 0.0, 0.15, 0.0, 1.0, 0.0;
+    ROS_INFO_STREAM("trying to get robot positions");
+    Eigen::VectorXd q = robot_->getPositions();
+    ROS_INFO_STREAM("assigning starting values to them");
+    q.segment(0,6) = starting_pose.head(6);
+
+    std::string coxa("coxa_joint");
+    std::string femur("femur_joint");
+    std::string tibia("tibia_joint");
+    std::string foot1("foot_joint_1");
+    std::string foot2("foot_joint_2");
+    std::string foot3("foot_joint_3");
+
+    const std::array<std::string, 4> foot_name = {"AL_", "BL_", "AR_", "BR_"};
+
+    double femur_joint_init = 1./10.*M_PI_2; // -1./10.*M_PI_2;
+    double tibia_joint_init = -11./10.*M_PI_2; // -9./10.*M_PI_2;
+
+    ROS_INFO_STREAM("before loop");
+    for(int i=0; i<foot_name.size(); i++) {
+        q[robot_->getDof(foot_name[i] + coxa)->getIndexInSkeleton()] = 0.0;
+        q[robot_->getDof(foot_name[i] + femur)->getIndexInSkeleton()] = femur_joint_init;
+        q[robot_->getDof(foot_name[i] + tibia)->getIndexInSkeleton()] = tibia_joint_init;
+        q[robot_->getDof(foot_name[i] + foot1)->getIndexInSkeleton()] = 0.0;
+        q[robot_->getDof(foot_name[i] + foot2)->getIndexInSkeleton()] = 0.0;
+        q[robot_->getDof(foot_name[i] + foot3)->getIndexInSkeleton()] = 0.0;
+    }
+
+    ROS_INFO_STREAM("READY TO SET POSITIONS!");
+    robot_->setPositions(q);
+
+    res.success = false;
+    return 1;
+}
 
 
 void MagnetoRosNode::customPreStep() {
-    // & RL foot placement updating
-    // ~~~
-    // std_msgs::String status;
-    // std::stringstream ss;
-    // ss << "Ready for rl_input: " << ready_for_rl_input_;
-    // status.data = ss.str();
-    // status_pub_.publish(status);
-    // ~~~
 
-    // + After meeting with Jee-eun
-    // if (should_use_rl_) {
-    //     ROS_INFO_STREAM("Entered RL logic loop!");
-    //     ROS_INFO_STREAM("plugin_updated_: " << plugin_updated_);
-    //     ROS_INFO_STREAM("end of state: " << ((MagnetoInterface*)interface_)->MonitorEndofState());
-    //     // ROS_INFO_STREAM("Planner updates: " << (((MagnetoInterface*)interface_)->MonitorFootPlannerUpdate()) << ", RL Commands: " << num_rl_commands_received_ <<  ", initial steps: " << num_initial_steps_);
-        
-    //     // TODO think about this logic and whether I want to keep it or if it needs to be changed
-    //     // if ((((MagnetoInterface*)interface_)->MonitorFootMotionEndUpdate() - num_initial_steps_) == num_rl_commands_received_) {
-    //     if (!plugin_updated_ && ((MagnetoInterface*)interface_)->MonitorEndofState()) {
-    //         MagnetoRosNode::pluginInterface();
-    //     }
-
-    //     if (plugin_updated_ && !((MagnetoInterface*)interface_)->MonitorEndofState()){
-    //         plugin_updated_ = false;
-    //         std::cout<<" plugin_updated_  = " << plugin_updated_ << std::endl;            
-    //     }
-    // }
-    
-    // + Works decently well with ROS
-    // if (should_use_rl_) {
-    //     if (!plugin_updated_ && ((MagnetoInterface*)interface_)->MonitorEndofState()) {
-    //         // if (!ready_for_rl_input_) {
-    //         //     ROS_INFO_STREAM("Waiting for ready_for_rl_update request; simulation is paused");
-    //         // }
-    //         while (!ready_for_rl_input_) {
-    //             ROS_INFO_STREAM("Waiting for ready_for_rl_update request; simulation is paused");
-    //         }
-
-    //         MagnetoRosNode::pluginInterface();
-    //         // TODO when we exit here, probably want to use a timer to allow physics to resolve, handle foot locations and such on the other end
-    //     }
-
-    //     if (plugin_updated_ && !((MagnetoInterface*)interface_)->MonitorEndofState()){
-    //         plugin_updated_ = false;
-    //         std::cout<<" plugin_updated_  = " << plugin_updated_ << std::endl;            
-    //     }
-    // }
-
+    // &&&
     // + Devel
     if (should_use_rl_) {
         if (((MagnetoInterface*)interface_)->MonitorEndofState()) {
@@ -262,17 +391,17 @@ void MagnetoRosNode::customPreStep() {
         }
 
         if ((ros::Time::now().toSec() - sim_resume_time_) <= resume_duration_) {
-            ROS_INFO_STREAM("Waiting for physics to resolve given duration " << resume_duration_ << "(" << (ros::Time::now().toSec() - sim_resume_time_) << "/" << resume_duration_ << ")");
-        }
-        // if (!plugin_updated_ && ((MagnetoInterface*)interface_)->MonitorEndofState()) {
-        else if (!plugin_updated_ && ready_for_next_step_) {
+            // ROS_INFO_STREAM("Waiting for physics to resolve given duration " << resume_duration_ << "(" << (ros::Time::now().toSec() - sim_resume_time_) << "/" << resume_duration_ << ")");
+            std::cout << "Waiting for physics to resolve given duration " << resume_duration_ << "(" << (ros::Time::now().toSec() - sim_resume_time_) << "/" << resume_duration_ << ")" << std::endl;
+        } else if (!plugin_updated_ && ready_for_next_step_) {
             ready_for_next_step_ = false;
 
             while (!ready_for_rl_input_) {
-                ROS_INFO_STREAM("Waiting for ready_for_rl_update request; simulation is paused");
+                // ROS_INFO_STREAM("Waiting for ready_for_rl_update request; simulation is paused...");
+                std::cout << "Waiting for ready_for_rl_update request; simulation is paused..." << std::endl;
             }
-
-            MagnetoRosNode::pluginInterface();
+            // MagnetoRosNode::pluginInterface();
+            MagnetoRosNode::enactActionCommand();
             sim_resume_time_ = ros::Time::now().toSec();
         }
 
