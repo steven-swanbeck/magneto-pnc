@@ -8,6 +8,10 @@ from geometry_msgs.msg import Point, Pose
 # from magneto_rl.srv import FootPlacement
 from magneto_rl.srv import FootPlacement, FootPlacementResponse
 from magneto_rl.srv import UpdateMagnetoAction, UpdateMagnetoActionResponse
+from magneto_rl.srv import ReportMagnetoState, ReportMagnetoStateResponse
+import roslaunch
+import time
+import pyautogui
 
 class MagnetoRLPlugin (object):
     
@@ -18,6 +22,10 @@ class MagnetoRLPlugin (object):
         self.test_action_service = rospy.Service('test_action_command', Trigger, self.test_action_command)
         self.set_magneto_action = rospy.ServiceProxy('set_magneto_action', UpdateMagnetoAction)
         self.command_sleep_duration = rospy.get_param('/magneto/simulation/resume_duration')
+        self.test_state_service = rospy.Service('test_state_getter', Trigger, self.test_get_state)
+        self.test_begin_episode = rospy.Service('test_episode_begin', Trigger, self.begin_episode_cb)
+        self.test_end_episode = rospy.Service('test_episode_end', Trigger, self.end_episode_cb)
+        self.test_reset_episode = rospy.Service('test_episode_reset', Trigger, self.reset_episode_cb)
         
         self.link_idx = {
             'AR':rospy.get_param('/magneto/simulation/link_idx/AR'),
@@ -27,8 +35,38 @@ class MagnetoRLPlugin (object):
         }
         self.naive_walk_order = ['AR', 'AL', 'BL', 'BR']
         self.last_foot_placed = None
+        
+        # self.begin_sim_episode()
     
-    def test_action_command (self, msg) -> bool:
+    # . Testing functions
+    def begin_episode_cb (self, msg:Trigger):
+        success = self.begin_sim_episode()
+        return success, ''
+    
+    def end_episode_cb (self, msg:Trigger):
+        success = self.end_sim_episode()
+        return success, ''
+    
+    def reset_episode_cb (self, msg:Trigger):
+        self.end_sim_episode()
+        self.begin_sim_episode()
+        
+        test = Trigger()
+        self.test_action_command(test)
+        self.test_action_command(test)
+        self.test_action_command(test)
+        self.test_action_command(test)
+        self.test_get_state(test)
+        
+        return True, ''
+    
+    def test_get_state (self, msg):
+        # srv = ReportMagnetoState()
+        res = self.get_magneto_state()
+        rospy.loginfo(res.body_pose)
+        return True, ''
+    
+    def test_action_command (self, msg):
         # srv = UpdateMagnetoAction()
         
         if self.last_foot_placed is not None:
@@ -55,6 +93,48 @@ class MagnetoRLPlugin (object):
         rospy.sleep(self.command_sleep_duration)
         return True, ''
     
+    # . Simulator Dynamics
+    def report_state (self):
+        res = self.get_magneto_state()
+        return res
+    
+    def update_action (self, link_id:str, pose:Pose) -> bool:
+        rospy.loginfo(f'[update_action] Setting new action for link_id {link_id} (link_idx: {self.link_idx[link_id]}) of pose\n{pose}')
+        res = self.set_magneto_action(self.link_idx[link_id], pose)
+        rospy.sleep(self.command_sleep_duration)
+        return res.success
+    
+    def begin_sim_episode (self) -> bool:
+        node = roslaunch.core.Node('my_simulator', 
+                            'magneto_ros') #,
+                            # args='config/Magneto/USERCONTROLWALK.yaml')
+        launch = roslaunch.scriptapi.ROSLaunch()
+        launch.start()
+        self.sim_process = launch.launch(node)
+        rospy.loginfo(f'[begin_sim_episode] Starting simulation episode. Process is alive: {self.sim_process.is_alive()}')
+        time.sleep(3)
+        
+        self.set_magneto_action = rospy.ServiceProxy('set_magneto_action', UpdateMagnetoAction)
+        self.get_magneto_state = rospy.ServiceProxy('get_magneto_state', ReportMagnetoState)
+        
+        pyautogui.doubleClick(1440 + 500/2, 10)
+        pyautogui.click(1440 + 500/2, 500/2)
+        pyautogui.press('space')
+        time.sleep(1)
+        
+        pyautogui.press('s')
+        rospy.loginfo('[begin_sim_episode] Finished bringing up simulation.')
+        return True
+    
+    def end_sim_episode (self) -> bool:
+        rospy.loginfo('[end_sim_episode] Ending simulation episode. Forcing shutdown of simulation...')
+        pyautogui.click(1440 + 500/2, 500/2)
+        pyautogui.click(1899, 21)
+        self.sim_process.stop()
+        time.sleep(1)
+        return not self.sim_process.is_alive()
+    
+    # . Deprecated
     def determine_next_step (self, req:FootPlacement) -> FootPlacementResponse:
         
         rospy.loginfo(f'Base pose:\n{req.base_pose}')
@@ -82,7 +162,7 @@ class MagnetoRLPlugin (object):
     def run (self):
         while not rospy.is_shutdown():
             rospy.spin()
-            
+
 if __name__ == "__main__":
     magneto_rl = MagnetoRLPlugin()
     magneto_rl.run()

@@ -40,8 +40,8 @@ MagnetoRosNode::MagnetoRosNode(ros::NodeHandle& nh, const dart::simulation::Worl
     // ---& RL PARAMS
     if (!nh_.param<bool>("/magneto/rl/active", should_use_rl_, false));
     if (should_use_rl_) {
-        if (!nh_.param<std::string>("/magneto/simulation/walkset", walkset_, "config/Magneto/USERCONTROL.yaml"));
-        nh_.param<double>("/magneto/simulation/resume_duration", resume_duration_, 1.0);
+        if (!nh_.param<std::string>("/magneto/simulation/walkset", walkset_, "config/Magneto/USERCONTROLWALK.yaml"));
+        nh_.param<double>("/magneto/simulation/resume_duration", resume_duration_, 3.0);
     } else {
         nh_.param<std::string>("/magneto/simulation/walkset", walkset_, "config/Magneto/SIMULATIONWALK.yaml");
     }
@@ -338,17 +338,13 @@ void MagnetoRosNode::enactActionCommand () {
 
 bool MagnetoRosNode::resetSim(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res) {
     // TODO
-    ROS_INFO_STREAM("Inside resetSim()");
-
     // while ((ros::Time::now().toSec() - sim_resume_time_) <= 10) {
     //     ROS_INFO_STREAM("WAITING!");
     // }
 
     Eigen::VectorXd starting_pose;
     starting_pose << 0.0, 0.0, 0.15, 0.0, 1.0, 0.0;
-    ROS_INFO_STREAM("trying to get robot positions");
     Eigen::VectorXd q = robot_->getPositions();
-    ROS_INFO_STREAM("assigning starting values to them");
     q.segment(0,6) = starting_pose.head(6);
 
     std::string coxa("coxa_joint");
@@ -363,7 +359,6 @@ bool MagnetoRosNode::resetSim(std_srvs::Trigger::Request &req, std_srvs::Trigger
     double femur_joint_init = 1./10.*M_PI_2; // -1./10.*M_PI_2;
     double tibia_joint_init = -11./10.*M_PI_2; // -9./10.*M_PI_2;
 
-    ROS_INFO_STREAM("before loop");
     for(int i=0; i<foot_name.size(); i++) {
         q[robot_->getDof(foot_name[i] + coxa)->getIndexInSkeleton()] = 0.0;
         q[robot_->getDof(foot_name[i] + femur)->getIndexInSkeleton()] = femur_joint_init;
@@ -373,7 +368,6 @@ bool MagnetoRosNode::resetSim(std_srvs::Trigger::Request &req, std_srvs::Trigger
         q[robot_->getDof(foot_name[i] + foot3)->getIndexInSkeleton()] = 0.0;
     }
 
-    ROS_INFO_STREAM("READY TO SET POSITIONS!");
     robot_->setPositions(q);
 
     res.success = false;
@@ -396,9 +390,13 @@ void MagnetoRosNode::customPreStep() {
         } else if (!plugin_updated_ && ready_for_next_step_) {
             ready_for_next_step_ = false;
 
+            if (!ready_for_rl_input_) {
+                std::cout << "Waiting for ready_for_rl_update request; simulation is paused..." << std::endl;   
+            }
             while (!ready_for_rl_input_) {
                 // ROS_INFO_STREAM("Waiting for ready_for_rl_update request; simulation is paused...");
-                std::cout << "Waiting for ready_for_rl_update request; simulation is paused..." << std::endl;
+                // std::cout << "Waiting for ready_for_rl_update request; simulation is paused..." << std::endl;
+                ros::Duration(0.001).sleep();
             }
             // MagnetoRosNode::pluginInterface();
             MagnetoRosNode::enactActionCommand();

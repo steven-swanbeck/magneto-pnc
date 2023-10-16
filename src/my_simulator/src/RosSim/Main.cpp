@@ -205,7 +205,8 @@ int main(int argc, char** argv) {
     
     std::string sim_config_filename; 
     if(argc < 2) {
-        sim_config_filename = "config/Magneto/SIMULATIONWALK.yaml";
+        // sim_config_filename = "config/Magneto/SIMULATIONWALK.yaml";
+        sim_config_filename = "config/Magneto/USERCONTROLWALK.yaml";
         ROS_WARN("simulation config file default: %s", sim_config_filename.c_str());
     } else {
         sim_config_filename = std::string(argv[1]);

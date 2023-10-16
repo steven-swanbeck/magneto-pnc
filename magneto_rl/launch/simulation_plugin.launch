@@ -10,7 +10,7 @@
         <node
             name    = "magneto_rl_plugin"
             pkg     = "magneto_rl" 
-            type    = "test_plugin.py"
+            type    = "magneto_plugin.py"
             args    = ""
             output  = "screen"
         >
