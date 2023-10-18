@@ -208,6 +208,22 @@ void MagnetoRosNode::pluginInterface() {
 // TODO fill in these functions and make sure they work as intended
 bool MagnetoRosNode::reportStateInformation(magneto_rl::ReportMagnetoState::Request &req, magneto_rl::ReportMagnetoState::Response &res) {
     // WIP
+    // . Ground Pose
+    Eigen::Quaternion<double> q_ground
+                            = Eigen::Quaternion<double>( 
+                                ground_->getBodyNode("ground_link")
+                                        ->getWorldTransform().linear() );
+    Eigen::VectorXd p_ground = ground_->getBodyNode("ground_link")->getWorldTransform().translation();
+    
+    geometry_msgs::Pose ground_pose;
+    ground_pose.position.x = p_ground.x();
+    ground_pose.position.y = p_ground.y();
+    ground_pose.position.z = p_ground.z();
+    ground_pose.orientation.w = q_ground.w();
+    ground_pose.orientation.x = q_ground.x();
+    ground_pose.orientation.y = q_ground.y();
+    ground_pose.orientation.z = q_ground.z();
+
     // . Base pose
     Eigen::Quaternion<double> q_base 
                             = Eigen::Quaternion<double>( 
@@ -301,6 +317,7 @@ bool MagnetoRosNode::reportStateInformation(magneto_rl::ReportMagnetoState::Requ
     state_br.pose = pose_br;
 
     // . composition into service response
+    res.ground_pose = ground_pose;
     res.body_pose = base_pose;
     res.AR_state = state_ar;
     res.AL_state = state_al;
@@ -539,7 +556,7 @@ void MagnetoRosNode::ApplyMagneticForce()  {
     double distance_ratio;
     double distance_constant = contact_threshold_ * 4.; // 0.045
     
-    Eigen::Quaternion<double> quat_ground 
+    Eigen::Quaternion<double> quat_ground
                             = Eigen::Quaternion<double>( 
                                 ground_->getBodyNode("ground_link")
                                         ->getWorldTransform().linear() );
@@ -556,6 +573,7 @@ void MagnetoRosNode::ApplyMagneticForce()  {
             // std::cout<<"res: dist = "<<contact_distance_[it.first]<<", distance_ratio=" << distance_ratio << std::endl;
         }       
         force_w = quat_ground.toRotationMatrix() * force;
+        // TODO add in modifier here using service call to env
         robot_->getBodyNode(it.first)->addExtForce(force, location, is_force_local);
         // robot_->getBodyNode(it.first)->addExtForce(force_w, location, is_force_global);
 
@@ -567,8 +585,6 @@ void MagnetoRosNode::ApplyMagneticForce()  {
 }
 
 void MagnetoRosNode::PlotResult_() {
-    ROS_WARN_STREAM("In plot result");
-
     Eigen::VectorXd com_pos = Eigen::VectorXd::Zero(3);
 
     ((MagnetoInterface*)interface_)-> GetOptimalCoM(com_pos);

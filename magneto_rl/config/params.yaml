@@ -9,3 +9,4 @@ magneto:
       BL:              32
       BR:              41
     resume_duration:   3 # seconds
+    vertical_pixel_calibration_offset: 24 #0 for my monitors, 20 for my laptop
