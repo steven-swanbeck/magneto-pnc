@@ -3,9 +3,9 @@ import rospy
 import roslaunch
 import random
 from std_srvs.srv import Trigger
-from magneto_rl .srv import ReportMagnetoState
-# from mapping_3d .srv import ReportMagnetoState #.For testing because of the weird cmake issues
-from numpy import array, int32
+from magneto_rl.srv import ReportMagnetoState
+# from mapping_3d.srv import ReportMagnetoState #.For testing because of the weird cmake issues
+from numpy import array, int32, zeros
 
 
 
@@ -30,15 +30,15 @@ class SeedMagnetism (object):
         self.height = 10
         self.width = 15
         #TODO: Assuming that height and width are in meters, divide by the desired chunk size (e.g. 10m^2 / 0.25m^2 -> 40x40 grid of magnetism)
-        self.pgmwrite(self.width, self.height)
+        self.map = self.pgmwrite(self.width, self.height)
+        #Here, self.map is what we can index to grab magnetism in a specific pixel.
         
         
     def pgmwrite(self, width, height, maxVal=10, magicNum='P2'):
-        img = []
+        img = zeros((height,width))
         self.f.write(magicNum + '\n')
         self.f.write(str(width) + ' ' + str(height) + '\n')
         self.f.write(str(maxVal) + '\n')
-        print("I made it here")
         for i in range(height):
             for j in range(width):
                 magnetism = random.gauss(mu=7.0, sigma=1.5)
@@ -46,8 +46,10 @@ class SeedMagnetism (object):
                 if magnetism > 10:
                     magnetism -= 5
                 self.f.write(str(magnetism) + ' ')
+                img[i][j] = magnetism
             self.f.write('\n')
         self.f.close()
+        return img
         
     
     def run(self):
