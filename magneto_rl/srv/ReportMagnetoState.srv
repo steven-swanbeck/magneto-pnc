@@ -7,3 +7,5 @@ magneto_rl/FootState AR_state
 magneto_rl/FootState AL_state
 magneto_rl/FootState BL_state
 magneto_rl/FootState BR_state
+int32 ground_width
+int32 ground_height
