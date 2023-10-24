@@ -3,11 +3,16 @@ import numpy as np
 import math
 from geometry_msgs.msg import Pose
 import random
+import tqdm
 
 class MagnetoAction (object):
     def __init__(self, idx:int=None, pose:Pose=None, link_idx:str=None) -> None:
         self.idx = idx
-        self.pose = pose
+        if pose is not None:
+            self.pose = pose
+        else:
+            self.pose = Pose()
+            self.pose.orientation.w = 1.0
         self.link_idx = link_idx
     
     def __repr__(self) -> str:
@@ -65,16 +70,25 @@ def euler_from_quaternion(w, x, y, z):
 
         return np.array([roll_x, pitch_y, yaw_z]) # in radians
 
+def return_closest (n, range):
+    return min(range, key=lambda x:abs(x-n))
+    
 def iterate (env, num_steps=10, check_status=True):
-    pose = Pose()
-    pose.orientation.w = 1.
-    action = MagnetoAction(pose=pose)
+    # pose = Pose()
+    # pose.orientation.w = 1.
+    # action = MagnetoAction(pose=pose)    
+    env.reset()
     
     for i in range(num_steps):
         print(f'it: {i}')
-        action.idx = random.randint(0,3)
-        action.pose.position.x = round(random.uniform(-0.2, 0.2), 2)
-        action.pose.position.y = round(random.uniform(-0.2, 0.2), 2)
+        action = np.empty([3,], dtype=np.float64)
+        
+        # action[0] = random.randint(0,3)
+        # action[1] = round(random.uniform(-0.2, 0.2), 2)
+        # action[2] = round(random.uniform(-0.2, 0.2), 2)
+        action[0] = random.uniform(-1, 1)
+        action[1] = random.uniform(-1, 1)
+        action[2] = random.uniform(-1, 1)
         # if (action.idx == 0) or (action.idx == 1):
         #     action.pose.position.x = round(random.uniform(0, 0.2), 2)
         #     action.pose.position.y = round(random.uniform(0, 0.2), 2)

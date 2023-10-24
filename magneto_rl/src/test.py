@@ -162,3 +162,8 @@ print("Pre-Training")
 print(f"Reward Mean: {reward_mean:.3f} Reward Std.: {reward_std:.3f}")
 
 # %%
+import numpy as np
+
+np.int8(np.round(-0.5))
+
+# %%

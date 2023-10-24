@@ -11,11 +11,13 @@ if __name__ == "__main__":
     # & Maybe I can use a costmap of knowns and unknowns so that the input to the model is the same size always?
     check_env(env)
     
+    env.close()
+    print('Past environment check!')
+    
     # . Next steps
     # - 1. Figure out how to add state and action spaces to Gym environment
     # - 2. Test to make sure we can use the environment then with stable baselines
     # - 3. Then try to package it nicely into an installable library that can be launched via ROS
     # - 4. Try to learn something with the network supplied by Sentis and after figuring out the state and actions spaces
     
-    # iterate(env, 10)
-    
+    # iterate(env, 5)

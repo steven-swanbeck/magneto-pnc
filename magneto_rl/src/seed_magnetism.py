@@ -50,7 +50,7 @@ class SeedMagnetism (object):
             self.f.write('\n')
         self.f.close()
         return img
-        
+    
     
     def run(self):
         while not rospy.is_shutdown():

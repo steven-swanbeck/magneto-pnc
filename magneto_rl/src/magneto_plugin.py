@@ -108,7 +108,7 @@ class MagnetoRLPlugin (object):
         return res
     
     def update_action (self, link_id:str, pose:Pose) -> bool:
-        rospy.loginfo(f'[update_action] Setting new action for link_id {link_id} (link_idx: {self.link_idx[link_id]}) of pose\n{pose}')
+        # rospy.loginfo(f'[update_action] Setting new action for link_id {link_id} (link_idx: {self.link_idx[link_id]}) of pose\n{pose}')
         res = self.set_magneto_action(self.link_idx[link_id], pose)
         rospy.sleep(self.command_sleep_duration)
         return res.success
@@ -120,7 +120,7 @@ class MagnetoRLPlugin (object):
         launch = roslaunch.scriptapi.ROSLaunch()
         launch.start()
         self.sim_process = launch.launch(node)
-        rospy.loginfo(f'[begin_sim_episode] Starting simulation episode. Process is alive: {self.sim_process.is_alive()}')
+        # rospy.loginfo(f'[begin_sim_episode] Starting simulation episode. Process is alive: {self.sim_process.is_alive()}')
         time.sleep(3)
         
         self.set_magneto_action = rospy.ServiceProxy('set_magneto_action', UpdateMagnetoAction)
@@ -132,11 +132,11 @@ class MagnetoRLPlugin (object):
         time.sleep(1)
         
         pyautogui.press('s')
-        rospy.loginfo('[begin_sim_episode] Finished bringing up simulation.')
+        # rospy.loginfo('[begin_sim_episode] Finished bringing up simulation.')
         return True
     
     def end_sim_episode (self) -> bool:
-        rospy.loginfo('[end_sim_episode] Ending simulation episode. Forcing shutdown of simulation...')
+        # rospy.loginfo('[end_sim_episode] Ending simulation episode. Forcing shutdown of simulation...')
         pyautogui.click(1440 + 500/2, 500/2)
         # pyautogui.click(1899, 21 + self.vertical_pixel_calibration_offset)
         pyautogui.click(1901, 21 + self.vertical_pixel_calibration_offset)
