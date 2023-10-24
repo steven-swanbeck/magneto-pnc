@@ -64,7 +64,7 @@ print(currentMouseX, currentMouseY)
 
 # %%
 import gymnasium as gym
-import magneto_gym
+# import magneto_gym
 
 env = gym.make('MagnetoWorld-v0')
 

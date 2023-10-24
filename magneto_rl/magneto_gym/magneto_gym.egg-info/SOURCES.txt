@@ -1,8 +1,0 @@
-setup.py
-magneto_gym/__init__.py
-magneto_gym.egg-info/PKG-INFO
-magneto_gym.egg-info/SOURCES.txt
-magneto_gym.egg-info/dependency_links.txt
-magneto_gym.egg-info/top_level.txt
-magneto_gym/envs/__init__.py
-magneto_gym/envs/magneto_env.py

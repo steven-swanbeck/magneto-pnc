@@ -95,7 +95,7 @@ class MagnetoEnv (Env):
         info = self._get_info()
         return obs, info
     
-    # DONE
+    # WIP
     def step (self, gym_action, check_status:bool=True):
         self.state_history.append(MagnetoState(self.plugin.report_state()))
         
@@ -116,26 +116,39 @@ class MagnetoEnv (Env):
         # . Termination determination
         is_terminated:bool = False
         goal_reached:bool = False
+        has_fallen:bool = False
         if self.has_fallen(): # if the robot has fallen
             is_terminated = True
+            has_fallen = True
             # self.reset()
+            print('Fall detected!')
         elif not self.making_sufficient_contact(obs_raw): # if the robot is not making good contact with the wall
             is_terminated = True
             # self.reset()
+            print('Making insufficient contact with wall!')
         elif self.at_goal(obs_raw): # if neither above true, if the robot has reached its goal position
             goal_reached = True
             is_terminated = True
+        elif not self.making_acceptable_progress_over_span(obs_raw, span=10, min_pos_deviation=0.1, min_yaw_deviation=0.3):
+            is_terminated = True
+            print('Failed to make acceptable progress over set span!')
         
         # . Reward calculation
         if goal_reached:
-            reward = 5
-        elif is_terminated:
-            reward = -10
+            reward = 10
+        elif has_fallen:
+            reward = -15
+        elif is_terminated: # if feet are not well planted or unacceptable progress has been made
+            reward = -5
+        # TODO maybe make reward proportional to change in base location?
         else:
             reward = -1
         
         # .Converting observation to format required by Gym
         obs = self.state_2_gym(obs_raw)
+        print('-----------------')
+        print(f'Step reward: {reward}')
+        print('-----------------')
         
         return obs, reward, is_terminated, False, info
     
@@ -302,7 +315,8 @@ class MagnetoEnv (Env):
             if value[2][:] > tol: # z-coordinate
                 error_msg += f'\n   Foot {key}! Value is {value[2][0]} and allowable tolerance is set to {tol}.'
                 insufficient += 1
-        if insufficient > 1:
+        # if insufficient > 1:
+        if insufficient > 0:
             error_msg = 'ERROR! ' + error_msg + ' Resetting sim.'
             print(error_msg)
             outcome = False
@@ -311,9 +325,8 @@ class MagnetoEnv (Env):
             outcome = True
         return outcome
 
-    # TODO
+    # DONE
     def at_goal (self, obs, tol=0.01):
-        # . Take in observation and determine if we are at the goal position
         if np.linalg.norm(np.array([obs.body_pose.position.x, obs.body_pose.position.y]) - self.goal) < tol:
             return True
         return False
@@ -327,3 +340,47 @@ class MagnetoEnv (Env):
         if x < -0.5:
             return 0
         return 1
+
+    # WIP
+    def making_acceptable_progress_over_span (self, obs, span=5, min_pos_deviation=0.1, min_yaw_deviation=0.3):
+        if len(self.state_history) < span:
+            return True
+        
+        satisfactory_pos_progress:bool = False
+        satisfactory_ori_progress:bool = False
+        
+        pos_c = np.array([
+            obs.body_pose.position.x, 
+            obs.body_pose.position.y, 
+            obs.body_pose.position.z,
+        ])
+        
+        pos_comp = np.array([
+            self.state_history[-span].body_pose.position.x,
+            self.state_history[-span].body_pose.position.y,
+            self.state_history[-span].body_pose.position.z,
+        ])
+        
+        if np.linalg.norm(pos_c - pos_comp) < min_pos_deviation:
+            satisfactory_pos_progress = False
+            
+        _, _, yaw_c = euler_from_quaternion(
+            obs.body_pose.orientation.w,
+            obs.body_pose.orientation.x,
+            obs.body_pose.orientation.y,
+            obs.body_pose.orientation.z,
+        )
+        
+        _, _, yaw_comp = euler_from_quaternion(
+            self.state_history[-span].body_pose.orientation.w,
+            self.state_history[-span].body_pose.orientation.x,
+            self.state_history[-span].body_pose.orientation.y,
+            self.state_history[-span].body_pose.orientation.z,
+        )
+            
+        if np.abs(yaw_c - yaw_comp) < min_yaw_deviation:
+            satisfactory_ori_progress = False
+        
+        if (not satisfactory_pos_progress) or (not satisfactory_ori_progress):
+            return False
+        return True

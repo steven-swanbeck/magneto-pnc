@@ -54,6 +54,5 @@ Configuration.h
 drake_binary
 __pycache__
 
- 
-
-
+# training weights
+magneto_rl/src/weights/
