@@ -53,6 +53,7 @@ tags
 Configuration.h
 drake_binary
 __pycache__
+*.pgm
 
 # training weights
 magneto_rl/src/weights/

@@ -13,6 +13,8 @@ import roslaunch
 import time
 import pyautogui
 import random
+from seed_magnetism import SeedMagnetism
+
 
 class MagnetoRLPlugin (object):
     
@@ -40,6 +42,9 @@ class MagnetoRLPlugin (object):
         self.vertical_pixel_calibration_offset = rospy.get_param('/magneto/simulation/vertical_pixel_calibration_offset')
         
         # self.begin_sim_episode()
+        
+        # TODO: 5m x 5m currently hardcoded. Steven, this should input from the yaml
+        self.mag_map = SeedMagnetism(5,5)
     
     # . Testing functions
     def begin_episode_cb (self, msg:Trigger):
@@ -125,6 +130,12 @@ class MagnetoRLPlugin (object):
         
         self.set_magneto_action = rospy.ServiceProxy('set_magneto_action', UpdateMagnetoAction)
         self.get_magneto_state = rospy.ServiceProxy('get_magneto_state', ReportMagnetoState)
+        
+        
+        #TODO: JARED: Trigger magnetism seed
+        self.mag_map.create_map()
+        # > Return "true I created that object"
+        # > Then, later, can call a function from seed_magnetism that will grab pixel val
         
         pyautogui.doubleClick(1440 + 500/2, 10 + self.vertical_pixel_calibration_offset)
         pyautogui.click(1440 + 500/2, 500/2)

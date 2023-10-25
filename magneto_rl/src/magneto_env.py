@@ -261,7 +261,7 @@ class MagnetoEnv (Env):
             print(f"ERROR! Relative position deviation {diff_mag / np.linalg.norm(v_des)} exceeds set relative tolerance of {tol_rel}.")
             return False
         return True
-    
+    # TODO vvv move to utils :)
     # DONE
     def extract_ground_frame_positions (self, state:MagnetoState):
         r = R.from_quat([state.ground_pose.orientation.x, state.ground_pose.orientation.y, state.ground_pose.orientation.z, state.ground_pose.orientation.w])
