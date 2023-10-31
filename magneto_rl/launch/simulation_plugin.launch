@@ -1,27 +1,10 @@
 <launch>
-    <arg name="set" default="orig"/>
-
-    <arg name="magneto_sim_args" value="config/Magneto/SIMULATIONWALK.yaml" if="$(eval set == 'orig')"/>
-    <!-- <arg name="magneto_sim_args" value="config/Magneto/USERCONTROLWALK.yaml" if="$(eval set == 'orig')"/> -->
-    <arg name="magneto_sim_args" value="config/Magneto/USERCONTROLWALK.yaml" if="$(eval set == 'rl')"/>
-
-    <group unless="$(eval set == 'orig')">
-        <rosparam command="load" file="$(find magneto_rl)/config/params.yaml"/>
-        <node
-            name    = "magneto_rl_plugin"
-            pkg     = "magneto_rl" 
-            type    = "magneto_plugin.py"
-            args    = ""
-            output  = "screen"
-        >
-        </node>
-    </group>
-
+    <rosparam command="load" file="$(find magneto_rl)/config/params.yaml"/>
     <node
-        name    = "magneto_simulation"
-        pkg     = "my_simulator" 
-        type    = "magneto_ros"
-        args    = "$(arg magneto_sim_args)"
+        name    = "magneto_rl_plugin"
+        pkg     = "magneto_rl" 
+        type    = "magneto_plugin.py"
+        args    = ""
         output  = "screen"
     >
     </node>

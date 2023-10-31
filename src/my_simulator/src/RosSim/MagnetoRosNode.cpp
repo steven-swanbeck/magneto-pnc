@@ -399,6 +399,7 @@ void MagnetoRosNode::customPreStep() {
     if (should_use_rl_) {
         if (((MagnetoInterface*)interface_)->MonitorEndofState()) {
             ready_for_next_step_ = true;
+            // ? maybe the request for magnetism modifiers can be made here? I think it can
         }
 
         if ((ros::Time::now().toSec() - sim_resume_time_) <= resume_duration_) {
@@ -574,6 +575,7 @@ void MagnetoRosNode::ApplyMagneticForce()  {
         }       
         force_w = quat_ground.toRotationMatrix() * force;
         // TODO add in modifier here using service call to env
+        // - need to store a magnetism value as a class variable for the node, print out robot_->getBodyNode(it.first) to see what it says
         robot_->getBodyNode(it.first)->addExtForce(force, location, is_force_local);
         // robot_->getBodyNode(it.first)->addExtForce(force_w, location, is_force_global);
 

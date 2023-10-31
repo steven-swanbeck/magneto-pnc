@@ -4,6 +4,7 @@ import math
 from geometry_msgs.msg import Pose
 import random
 import tqdm
+from scipy.spatial.transform import Rotation as R
 
 class MagnetoAction (object):
     def __init__(self, idx:int=None, pose:Pose=None, link_idx:str=None) -> None:
@@ -70,6 +71,24 @@ def euler_from_quaternion(w, x, y, z):
 
         return np.array([roll_x, pitch_y, yaw_z]) # in radians
 
+def extract_ground_frame_positions (state:MagnetoState):
+    r = R.from_quat([state.ground_pose.orientation.x, state.ground_pose.orientation.y, state.ground_pose.orientation.z, state.ground_pose.orientation.w])
+    translation = np.expand_dims(np.array([state.ground_pose.position.x, state.ground_pose.position.y, state.ground_pose.position.z]), 1)
+    T = np.linalg.inv(np.concatenate([np.concatenate([r.as_matrix(), translation], axis=1), np.expand_dims(np.array([0, 0, 0, 1]), 1).T], axis=0))
+    
+    pb = np.expand_dims(np.array([state.body_pose.position.x, state.body_pose.position.y, state.body_pose.position.z, 1]), 1)
+    p0 = np.expand_dims(np.array([state.foot0.pose.position.x, state.foot0.pose.position.y, state.foot0.pose.position.z, 1]), 1)
+    p1 = np.expand_dims(np.array([state.foot1.pose.position.x, state.foot1.pose.position.y, state.foot1.pose.position.z, 1]), 1)
+    p2 = np.expand_dims(np.array([state.foot2.pose.position.x, state.foot2.pose.position.y, state.foot2.pose.position.z, 1]), 1)
+    p3 = np.expand_dims(np.array([state.foot3.pose.position.x, state.foot3.pose.position.y, state.foot3.pose.position.z, 1]), 1)
+
+    pb_ = T @ pb
+    p0_ = T @ p0
+    p1_ = T @ p1
+    p2_ = T @ p2
+    p3_ = T @ p3
+    return {'body':pb_, 'feet': {0:p0_, 1:p1_, 2:p2_, 3:p3_}}
+
 def return_closest (n, range):
     return min(range, key=lambda x:abs(x-n))
     
@@ -100,3 +119,22 @@ def iterate (env, num_steps=10, check_status=True):
         #     env.report_history()
         #     env.reset()
     env.terminate_episode()
+
+def global_to_body_frame (body_location, body_yaw, goal_location):
+    r = np.empty((3, 3))
+    r[0,:] = [np.cos(body_yaw), -np.sin(body_yaw), 0]
+    r[1,:] = [np.sin(body_yaw), np.cos(body_yaw), 0]
+    r[2,:] = [0, 0, 1]
+    t = np.expand_dims(np.array([body_location[0], body_location[1], 0]), 1)
+    T = np.linalg.inv(np.concatenate([np.concatenate([r, t], axis=1), np.expand_dims(np.array([0, 0, 0, 1]), 1).T], axis=0))
+    g = np.expand_dims(np.array([goal_location[0], goal_location[1], 0, 1]), 1)
+    g_b = T @ g
+    return np.array([g_b[0][0], g_b[1][0]])
+
+class paraboloid (object):
+    def __init__(self, origin:np.array) -> None:
+        self.w = origin[0]
+        self.h = origin[1]
+        
+    def eval(self, location:np.array) -> float:
+        return (location[0] - self.w)**2 + (location[1] - self.h)**2

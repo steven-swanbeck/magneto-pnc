@@ -33,7 +33,7 @@ from numpy import array, int32, zeros, sqrt
 
 
 
-class SeedMagnetism (object):
+class MagnetismMapper (object):
     
     def __init__(self, height, width, resolution = 0.25, radius = 0.5) -> None:
         self.res = resolution
@@ -48,6 +48,7 @@ class SeedMagnetism (object):
         # TODO: if h/w are even, add/sub one?
         #. The unit of resolution is meters/pixel
         #. The unit of radius should be in meters
+        random.seed()
         self.map = self.pgmwrite(int(self.w), int(self.h))
         #Here, self.map is what we can index to grab magnetism in a specific pixel.
         self.map = self.starting_zone(self.map, self.rad)

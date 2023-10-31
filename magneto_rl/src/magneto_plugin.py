@@ -12,8 +12,7 @@ from magneto_rl.srv import ReportMagnetoState, ReportMagnetoStateResponse
 import roslaunch
 import time
 import pyautogui
-import random
-from seed_magnetism import SeedMagnetism
+from seed_magnetism import MagnetismMapper
 
 
 class MagnetoRLPlugin (object):
@@ -29,6 +28,7 @@ class MagnetoRLPlugin (object):
         self.test_begin_episode = rospy.Service('test_episode_begin', Trigger, self.begin_episode_cb)
         self.test_end_episode = rospy.Service('test_episode_end', Trigger, self.end_episode_cb)
         self.test_reset_episode = rospy.Service('test_episode_reset', Trigger, self.reset_episode_cb)
+        self.test_map = rospy.Service('test_map', Trigger, self.get_map)
         
         self.link_idx = {
             'AR':rospy.get_param('/magneto/simulation/link_idx/AR'),
@@ -41,12 +41,16 @@ class MagnetoRLPlugin (object):
         
         self.vertical_pixel_calibration_offset = rospy.get_param('/magneto/simulation/vertical_pixel_calibration_offset')
         
-        # self.begin_sim_episode()
-        
-        # TODO: 5m x 5m currently hardcoded. Steven, this should input from the yaml
-        self.mag_map = SeedMagnetism(5,5)
+        self.mag_map = MagnetismMapper(rospy.get_param('/magneto/simulation/magnetism_map/wall_geometry/width'), rospy.get_param('/magneto/simulation/magnetism_map/wall_geometry/height'))
     
     # . Testing functions
+    # TODO validate the functionality of magnetism stuff
+    def get_map (self, msg:Trigger):
+        self.mag_map.create_map()
+        value = self.mag_map.pixel_grab(1.5, 1)
+        print(value)
+        return True, ''
+    
     def begin_episode_cb (self, msg:Trigger):
         success = self.begin_sim_episode()
         return success, ''
@@ -130,7 +134,6 @@ class MagnetoRLPlugin (object):
         
         self.set_magneto_action = rospy.ServiceProxy('set_magneto_action', UpdateMagnetoAction)
         self.get_magneto_state = rospy.ServiceProxy('get_magneto_state', ReportMagnetoState)
-        
         
         #TODO: JARED: Trigger magnetism seed
         self.mag_map.create_map()
