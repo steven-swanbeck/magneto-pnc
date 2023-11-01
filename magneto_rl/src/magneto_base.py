@@ -17,9 +17,10 @@ def main ():
     # rel_path = 'full_walking/'
     
     env = SimpleMagnetoEnv()
+    # env = SimpleMagnetoEnv(sim_mode="grid")
     rel_path = 'simple_walking/'
     
-    model = PPO("MlpPolicy", env=env, verbose=1, tensorboard_log="./magneto_tensorboard/")
+    # model = PPO("MlpPolicy", env=env, verbose=1, tensorboard_log="./magneto_tensorboard/")
     # $ tensorboard --logdir /home/steven/magneto_tensorboard/
     
     # - Callback to save weights during training
@@ -32,15 +33,18 @@ def main ():
     )
     
     # - Loading specified weights
-    # model.load(path + rel_path + 'breakpoint.zip')
+    model = PPO.load(path + rel_path + 'breakpoint.zip', env=env)
+    
+    # reward_mean, reward_std = evaluate_policy(model, env, n_eval_episodes=10)
     
     # - Training
     try:
         model.learn(total_timesteps=10, callback=checkpoint_callback, progress_bar=True)
     finally:
-        model.save(path + rel_path + 'breakpoint.zip')
-        # stamp = env.export_video()
-        # model.save(path + rel_path + stamp + '.zip')
+        pass
+    #     model.save(path + rel_path + 'breakpoint.zip')
+    #     # stamp = env.export_video()
+    #     # model.save(path + rel_path + stamp + '.zip')
 
 if __name__ == "__main__":
     main()

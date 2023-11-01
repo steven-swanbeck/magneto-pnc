@@ -131,6 +131,15 @@ def global_to_body_frame (body_location, body_yaw, goal_location):
     g_b = T @ g
     return np.array([g_b[0][0], g_b[1][0]])
 
+def body_to_global_frame (body_yaw, goal_location):
+    r = np.empty((3, 3))
+    r[0,:] = [np.cos(body_yaw), -np.sin(body_yaw), 0]
+    r[1,:] = [np.sin(body_yaw), np.cos(body_yaw), 0]
+    r[2,:] = [0, 0, 1]
+    g = np.expand_dims(np.array([goal_location[0], goal_location[1], 0]), 1)
+    g_b = r @ g
+    return np.array([g_b[0][0], g_b[1][0]])
+
 class paraboloid (object):
     def __init__(self, origin:np.array) -> None:
         self.w = origin[0]

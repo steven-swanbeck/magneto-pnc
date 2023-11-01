@@ -357,3 +357,15 @@ x = np.sign(prev - curr1) * (prev - curr1)**2
 y = np.sign(prev - curr2) * (prev - curr2)**2
 print(f'x: {x}\ny: {y}')
 # %%
+
+import numpy as np
+
+x = np.empty((4,))
+print(x)
+
+# %%
+pos = np.array([1, 1])
+feet_pos = [[0, 0], [0, 0], [0, 0]]
+rel_feet_pos = [np.array(foot_pos) - pos for foot_pos in feet_pos]
+
+# %%
