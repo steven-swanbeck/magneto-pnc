@@ -57,3 +57,4 @@ __pycache__
 
 # training weights
 magneto_rl/src/weights/
+magneto_rl/src/magneto_tensorboard/

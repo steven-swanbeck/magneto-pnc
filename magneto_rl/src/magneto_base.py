@@ -33,7 +33,9 @@ def main ():
     )
     
     # - Loading specified weights
+    # model = PPO("MlpPolicy", env=env, verbose=1)
     model = PPO.load(path + rel_path + 'breakpoint.zip', env=env)
+    # model = PPO.load(path + rel_path + 'good0.5.zip', env=env)
     
     # reward_mean, reward_std = evaluate_policy(model, env, n_eval_episodes=10)
     

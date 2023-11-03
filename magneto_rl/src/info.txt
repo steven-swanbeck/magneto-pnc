@@ -1,0 +1,17 @@
+
+- magneto_base is used for interfacing with the actual simulation, it is what is launched by running roslaunch magneto_rl base.launched
+- magneto_env.py is the full gym environment with complete action and observation spaces
+- magneto_plugin interfaces the dart simulation with the gym environment
+- magneto_policy_learner should contain custom models and networks for learning
+- magneto_utils houses some useful general purpose functions
+- run_{}_magneto runs learning with the corresponding {}_magneto_env and {}_sim_plugin
+- seed magnetism generates a magnetic contour of the surface
+- test is just used for rapid prototyping
+
+
+Next steps:
+- If not with four legs, try to get learning with two distinct leg pairs?
+- Integrate the magnetic uncertainty to both simple and full sims (maybe do this first?)
+    - try to visualize the magnetic uncertainty as a background to the pygame window
+    - how to make the robot deal with magnetic uncertainty in this way?
+

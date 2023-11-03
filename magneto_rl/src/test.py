@@ -369,3 +369,69 @@ feet_pos = [[0, 0], [0, 0], [0, 0]]
 rel_feet_pos = [np.array(foot_pos) - pos for foot_pos in feet_pos]
 
 # %%
+
+class PosRep ():
+    def __init__(self, x, y) -> None:
+        self.x = x
+        self.y = y
+        self.z = 0
+class OriRep ():
+    def __init__(self) -> None:
+        self.w = 1.
+        self.x = 0.
+        self.y = 0.
+        self.z = 0.
+class PoseRep ():
+    
+    def __init__(self, x, y):
+        self.position = PosRep(x, y)
+        self.orientation = OriRep()
+
+from simple_sim_plugin import SimpleSimPlugin
+import time
+
+sim = SimpleSimPlugin(render_mode="human", render_fps=10)
+sim.begin_sim_episode()
+sim._render_frame()
+time.sleep(1)
+foot_pose = PoseRep(-0.08, 0.)
+for ii in range(10):
+    sim.update_action('AR', foot_pose)
+    test = sim.report_state()
+    print(test.AR_state.pose.position.z)
+    sim._render_frame()
+    time.sleep(1)
+sim.close()
+
+
+# foot_pose.position.x = -0.08
+# foot_pose.position.y = 0.
+# sim.update_action('AR', foot_pose)
+# sim._render_frame()
+# time.sleep(1)
+# sim.update_action('AL', foot_pose)
+# sim._render_frame()
+# time.sleep(1)
+# sim.update_action('BR', foot_pose)
+# sim._render_frame()
+# time.sleep(1)
+# sim.update_action('BL', foot_pose)
+# sim._render_frame()
+# time.sleep(1)
+# sim.close()
+# %%
+
+import numpy as np
+import cv2
+
+height = 500
+width = 500
+b, g, r = 0x3E, 0x88, 0xE5
+blank_image = np.zeros((height, width, 3), np.uint8)
+# blank_image[:, :, 0] = 0
+# blank_image[:, :, 1] = 0
+# blank_image[:, :, 2] = 0
+cv2.imshow("test", blank_image)
+cv2.waitKey(0)
+
+# %%

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# %%
 import numpy as np
 import gymnasium as gym
 from gymnasium import Env, spaces
@@ -28,8 +29,8 @@ class SimpleMagnetoEnv (Env):
             self.plugin = SimpleSimPlugin(render_mode, self.metadata["render_fps"])
             self.render_mode = render_mode
         
-        act_low = np.array([-1, -1])
-        act_high = np.array([1, 1])
+        act_low = np.array([-1, -1, -1])
+        act_high = np.array([1, 1, 1])
         self.action_space = spaces.Box(low=act_low, high=act_high, dtype=np.float32)
         
         x_min_global = -5. # +
@@ -42,11 +43,24 @@ class SimpleMagnetoEnv (Env):
         yaw_max = np.pi
         goal_min_y = -5.
         goal_max_y = 5.
+        mag_min = 0.
+        mag_max = 1.
         
+        # TODO figure out how I want to add the magnetism (whole robot or legs? maybe projection in front of it?)
         obs_low = np.array([
-            x_min_global, y_min_global, 
+            x_min_global, y_min_global,
+            x_min_global, y_min_global,
+            x_min_global, y_min_global,
+            x_min_global, y_min_global,
+            x_min_global, y_min_global,
+            x_min_global, y_min_global,
         ])
         obs_high = np.array([
+            # x_max_global, y_max_global,
+            x_max_global, y_max_global,
+            x_max_global, y_max_global,
+            x_max_global, y_max_global,
+            x_max_global, y_max_global,
             x_max_global, y_max_global,
         ])
         self.observation_space = spaces.Box(low=obs_low, high=obs_high, dtype=np.float32)
@@ -67,15 +81,7 @@ class SimpleMagnetoEnv (Env):
         self.action_history.append(action)
         
         # . Taking specified action
-        walk_order = np.random.permutation([0, 1, 2, 3])
-        success = self.plugin.update_action(self.link_idx_lookup[walk_order[0]], action.pose)
-        # self.screenshot()
-        success = self.plugin.update_action(self.link_idx_lookup[walk_order[1]], action.pose)
-        # self.screenshot()
-        success = self.plugin.update_action(self.link_idx_lookup[walk_order[2]], action.pose)
-        # self.screenshot()
-        success = self.plugin.update_action(self.link_idx_lookup[walk_order[3]], action.pose)
-        # self.screenshot()
+        success = self.plugin.update_action(self.link_idx_lookup[action.idx], action.pose)
         
         # . Observation and info
         obs_raw = self._get_obs(format='ros')
@@ -169,8 +175,8 @@ class SimpleMagnetoEnv (Env):
         self.is_episode_running = True
         self.timesteps = 0
         # self.goal = np.array([random.uniform(-3.0, 3.0),random.uniform(-3.0, 3.0)]) # ! REMEMBER I'M FIXING THIS
-        # self.goal = np.array([random.uniform(-2.0, 2.0),random.uniform(-2.0, 2.0)])
-        self.goal = np.array([random.uniform(-4.5, 4.5),random.uniform(-4.5, 4.5)])
+        # self.goal = np.array([random.uniform(-0.5, 0.5),random.uniform(-0.5, 0.5)]) # ! REMEMBER I'M FIXING THIS
+        self.goal = np.array([random.uniform(-4.5, 4.5),random.uniform(-4.5, 4.5)]) # ! REMEMBER I'M FIXING THIS
         self.reward_paraboloid = paraboloid(self.goal)
         if (self.render_mode == "rgb_array") or (self.render_mode == "human"):
             self.plugin.update_goal(self.goal)
@@ -189,6 +195,7 @@ class SimpleMagnetoEnv (Env):
     def has_fallen (self, state, tol_pos=0.18, tol_ori=1.2):
         if self.making_insufficient_contact(state) == 4:
             return True
+        # ! THIS COULDN'T BE BROUGHT OVER FOR SOME REASON!
         if self.sim_mode != "full":
             return self.plugin.has_fallen()
         return False
@@ -226,9 +233,10 @@ class SimpleMagnetoEnv (Env):
         return 1
 
     def gym_2_action (self, gym_action:np.array) -> MagnetoAction:
-        action = MagnetoAction()        
-        action.pose.position.x = self.max_foot_step_size * gym_action[0]
-        action.pose.position.y = self.max_foot_step_size * gym_action[1]
+        action = MagnetoAction()
+        action.idx = self.get_foot_from_action(gym_action[0])   
+        action.pose.position.x = self.max_foot_step_size * gym_action[1]
+        action.pose.position.y = self.max_foot_step_size * gym_action[2]
         return action
     
     def state_2_gym (self, state:MagnetoState) -> np.array:
@@ -236,7 +244,14 @@ class SimpleMagnetoEnv (Env):
         
         relative_goal = global_to_body_frame(np.array([state.body_pose.position.x, state.body_pose.position.y]), body_yaw, self.goal)
         
-        gym_obs = np.array([
-            relative_goal[0], relative_goal[1],
-        ], dtype=np.float32)
+        outs = extract_ground_frame_positions(state)
+        # body_pos = np.array([outs['body'][0][0], outs['body'][1][0]])
+        foot0_pos = np.array([outs['feet'][0][0][0], outs['feet'][0][1][0]])
+        foot1_pos = np.array([outs['feet'][1][0][0], outs['feet'][1][1][0]])
+        foot2_pos = np.array([outs['feet'][2][0][0], outs['feet'][2][1][0]])
+        foot3_pos = np.array([outs['feet'][3][0][0], outs['feet'][3][1][0]])
+        
+        # gym_obs = np.concatenate((body_pos, foot0_pos, foot1_pos, foot2_pos, foot3_pos, relative_goal), dtype=np.float32)
+        gym_obs = np.concatenate((foot0_pos, foot1_pos, foot2_pos, foot3_pos, relative_goal), dtype=np.float32)
+        
         return gym_obs

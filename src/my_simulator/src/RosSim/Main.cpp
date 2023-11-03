@@ -101,6 +101,11 @@ void setWorld(dart::simulation::WorldPtr& world, const SimulatorParameter& sim_p
     // Enabel Joit Limits
     setJointLimitConstraint(robot);
 
+    // TODO maybe a marker can be added here for the location of the goal?
+    // dart::dynamics::SkeletonPtr ground = 
+    //                 urdfLoader.parseSkeleton(sim_param.fp_ground_);
+    // world->addSkeleton()
+
     // Set Transparency
     // setTransparency(robot);
 

@@ -114,7 +114,7 @@ class MagnetoEnv (Env):
         print(f'Goal: {self.goal}')
         print(f'Position: {np.array([obs_raw.body_pose.position.x, obs_raw.body_pose.position.y])}')
         print('-----------------')
-        self.screenshot()
+        # self.screenshot()
         self.timesteps += 1
         
         return obs, reward, is_terminated, False, info
@@ -281,7 +281,7 @@ class MagnetoEnv (Env):
     def state_2_gym (self, state:MagnetoState) -> np.array:
         _, _, body_yaw = euler_from_quaternion(state.body_pose.orientation.w, state.body_pose.orientation.x, state.body_pose.orientation.y, state.body_pose.orientation.z)
         
-        gym_obs = np.array([state.body_pose.position.x, state.body_pose.position.x, body_yaw,
+        gym_obs = np.array([state.body_pose.position.x, state.body_pose.position.y, body_yaw,
                             state.foot0.magnetic_force, state.foot0.pose.position.x, state.foot0.pose.position.y,
                             state.foot1.magnetic_force, state.foot1.pose.position.x, state.foot1.pose.position.y,
                             state.foot2.magnetic_force, state.foot2.pose.position.x, state.foot2.pose.position.y,
