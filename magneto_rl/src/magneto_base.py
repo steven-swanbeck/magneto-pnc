@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import sys
 from magneto_env import MagnetoEnv
-from simple_magneto_env import SimpleMagnetoEnv
 from magneto_utils import iterate
 from stable_baselines3.common.env_checker import check_env
 from magneto_policy_learner import CustomActorCriticPolicy
@@ -16,7 +15,7 @@ def main ():
     # env = MagnetoEnv()
     # rel_path = 'full_walking/'
     
-    env = SimpleMagnetoEnv()
+    env = MagnetoEnv()
     # env = SimpleMagnetoEnv(sim_mode="grid")
     rel_path = 'simple_walking/'
     

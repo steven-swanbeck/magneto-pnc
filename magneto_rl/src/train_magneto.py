@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # %%
-from independent_magneto_env import SimpleMagnetoEnv
+from magneto_env import MagnetoEnv
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback
 
@@ -8,11 +8,10 @@ def main ():
     # . Trying to learn SOMETHING
     path = '/home/steven/magneto_ws/outputs/'
     
-    env = SimpleMagnetoEnv(render_mode="human", sim_mode="grid", magnetic_seeds=0)
+    env = MagnetoEnv(render_mode="human", sim_mode="grid", magnetic_seeds=0)
     rel_path = 'independent_walking/'
     
     # # . Training    
-    
     # checkpoint_callback = CheckpointCallback(
     #     # save_freq=10,
     #     save_freq=100000,

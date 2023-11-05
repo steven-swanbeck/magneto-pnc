@@ -2,13 +2,10 @@
 # %%
 import numpy as np
 from magneto_utils import *
-from seed_magnetism import MagnetismMapper
 from magnetic_seeder import MagneticSeeder
 import pygame
-import time
-from copy import deepcopy
 
-class SimpleSimPlugin(object):
+class GamePlugin(object):
     
     # WIP
     def __init__(self, render_mode, render_fps, magnetic_seeds=10) -> None:
@@ -20,7 +17,6 @@ class SimpleSimPlugin(object):
         }
         self.leg_reach = np.array([0.08, 0.35])
         self.wall_size = 5
-        # self.mag_map = MagnetismMapper(self.wall_size, self.wall_size)
         self.render_mode = render_mode
         self.fps = render_fps
         self.window = None
