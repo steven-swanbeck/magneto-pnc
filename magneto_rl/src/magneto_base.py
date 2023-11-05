@@ -17,7 +17,7 @@ def main ():
     
     env = MagnetoEnv()
     # env = SimpleMagnetoEnv(sim_mode="grid")
-    rel_path = 'simple_walking/'
+    rel_path = 'independent_walking/'
     
     # model = PPO("MlpPolicy", env=env, verbose=1, tensorboard_log="./magneto_tensorboard/")
     # $ tensorboard --logdir /home/steven/magneto_tensorboard/

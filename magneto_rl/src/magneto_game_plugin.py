@@ -55,6 +55,9 @@ class GamePlugin(object):
     # WIP
     def update_action (self, link_id:str, pose:Pose) -> bool:
         update = body_to_global_frame(self.heading, np.array([pose.position.x, pose.position.y]))
+        
+        # print(f'Updating from: {self.foot_poses[self.link_idx[link_id]].position.x}, {self.foot_poses[self.link_idx[link_id]].position.y}')
+        # print(f'to: {self.foot_poses[self.link_idx[link_id]].position.x + update[0]}, {self.foot_poses[self.link_idx[link_id]].position.y + update[1]}')
         self.foot_poses[self.link_idx[link_id]].position.x += update[0] # ? switching these to try to better correspond with the full sim
         self.foot_poses[self.link_idx[link_id]].position.y += update[1]
         

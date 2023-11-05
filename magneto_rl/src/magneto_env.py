@@ -15,9 +15,9 @@ import pyscreenshot as ImageGrab
 import moviepy.video.io.ImageSequenceClip
 from datetime import datetime
 import csv
-
+from copy import deepcopy
 class MagnetoEnv (Env):
-    metadata = {"render_modes":["human", "rgb_array"], "render_fps":10}
+    metadata = {"render_modes":["human", "rgb_array"], "render_fps":100}
     
     def __init__ (self, render_mode=None, sim_mode="full", magnetic_seeds=10):
         super(MagnetoEnv, self).__init__()
@@ -72,7 +72,7 @@ class MagnetoEnv (Env):
         self.screenshots = []
     
     def step (self, gym_action, check_status:bool=True):
-        self.state_history.append(MagnetoState(self.plugin.report_state()))
+        self.state_history.append(MagnetoState(deepcopy(self.plugin.report_state())))
         
         # . Converting action from Gym format to one used by ROS plugin and other class members
         action = self.gym_2_action(gym_action)
@@ -94,7 +94,8 @@ class MagnetoEnv (Env):
         info = self._get_info()
         
         # . Termination determination
-        reward, is_terminated = self.calculate_reward(obs_raw, action)
+        # reward, is_terminated = self.calculate_reward(obs_raw, action) # . paraboloid landscape reward
+        reward, is_terminated = self.calculate_reward(obs_raw, action, strategy="progress") # . simple progress toward goal strategy
         
         # .Converting observation to format required by Gym
         obs = self.state_2_gym(obs_raw)
@@ -113,34 +114,66 @@ class MagnetoEnv (Env):
             obs = -1 * obs
         return obs, reward, is_terminated, False, info
     
-    def calculate_reward (self, state, action):
+    def calculate_reward (self, state, action, strategy="paraboloid"):
         is_terminated:bool = False
         
         if self.has_fallen(state):
             is_terminated = True
-            reward = -1000
+            reward = -300
             # print(f'Fall detected! Reward set to {reward}')
         elif self.at_goal(state):
             is_terminated = True
-            reward = 1000
+            reward = 200
             # print(f'Reached goal! Reward set to {reward}')
         else:
-            # curr = np.array([state.body_pose.position.x, state.body_pose.position.y])
-            # TODO! provide reward to each foot for where it is instead of the base
-            # ! Make sure these are correct mappings!
-            if action.idx == 0:
-                curr = np.array([state.foot0.pose.position.x, state.foot0.pose.position.y])
-            elif action.idx == 1:
-                curr = np.array([state.foot1.pose.position.x, state.foot1.pose.position.y])
-            elif action.idx == 2:
-                curr = np.array([state.foot2.pose.position.x, state.foot2.pose.position.y])
-            elif action.idx == 3:
-                curr = np.array([state.foot3.pose.position.x, state.foot3.pose.position.y])
-                
-            reward = -1 * self.reward_paraboloid.eval(curr)
-            # print(f'curr: {curr}, reward: {reward}')
+            if strategy == "paraboloid":
+                # curr = np.array([state.body_pose.position.x, state.body_pose.position.y])
+                if action.idx == 0:
+                    curr = np.array([state.foot0.pose.position.x, state.foot0.pose.position.y])
+                elif action.idx == 1:
+                    curr = np.array([state.foot1.pose.position.x, state.foot1.pose.position.y])
+                elif action.idx == 2:
+                    curr = np.array([state.foot2.pose.position.x, state.foot2.pose.position.y])
+                elif action.idx == 3:
+                    curr = np.array([state.foot3.pose.position.x, state.foot3.pose.position.y])
+                reward = -1 * self.reward_paraboloid.eval(curr)
+            
+            elif strategy == "progress":
+                reward = self.proximity_reward(state, action, multipliers=[100, 50]) # multipliers are for negative and positive progress, respectively
         
         return reward, is_terminated
+    
+    def proximity_reward (self, state, action, multipliers):
+        if len(self.state_history) < 1:
+            return 0
+        
+        proximity_change = self.calculate_distance_change(state, action)
+        
+        if proximity_change > 0:
+            return proximity_change * multipliers[1]
+        return proximity_change * multipliers[0]
+    
+    def get_state_history (self):
+        return self.state_history
+    
+    def calculate_distance_change (self, state, action):
+        if action.idx == 0:
+            foot_pos = np.array([state.foot0.pose.position.x, state.foot0.pose.position.y])
+            prev_pos = np.array([self.state_history[-1].foot0.pose.position.x, self.state_history[-1].foot0.pose.position.y])
+        elif action.idx == 1:
+            foot_pos = np.array([state.foot1.pose.position.x, state.foot1.pose.position.y])
+            prev_pos = np.array([self.state_history[-1].foot1.pose.position.x, self.state_history[-1].foot1.pose.position.y])
+        elif action.idx == 2:
+            foot_pos = np.array([state.foot2.pose.position.x, state.foot2.pose.position.y])
+            prev_pos = np.array([self.state_history[-1].foot2.pose.position.x, self.state_history[-1].foot2.pose.position.y])
+        elif action.idx == 3:
+            foot_pos = np.array([state.foot3.pose.position.x, state.foot3.pose.position.y])
+            prev_pos = np.array([self.state_history[-1].foot3.pose.position.x, self.state_history[-1].foot3.pose.position.y])
+        
+        prev_dist = np.linalg.norm(prev_pos - self.goal)
+        curr_dist = np.linalg.norm(foot_pos - self.goal)
+        # print(f'Goal: {self.goal}, prev_dist: {prev_dist} ({prev_pos}), curr_dist: {curr_dist} ({foot_pos})')
+        return prev_dist - curr_dist
     
     def screenshot (self):
         self.screenshots.append(np.array(ImageGrab.grab(bbox=(100, 200, 1800, 1050))))
@@ -175,7 +208,6 @@ class MagnetoEnv (Env):
     
     def reset (self, seed=None, options=None):
         super().reset(seed=seed)
-        # WIP
         if self.is_episode_running:
             self.terminate_episode()
         self.begin_episode()
@@ -301,17 +333,3 @@ class MagnetoEnv (Env):
         for ii in range(len(feet_pos)):
             relative_distances[ii] = np.linalg.norm(global_to_body_frame(self.goal, body_yaw, feet_pos[ii]), 2)
         return np.argmin(relative_distances)
-
-# # %%
-# env = SimpleMagnetoEnv(sim_mode="simple")
-
-# # %%
-# env.reset()
-
-# # %%
-# state = env._get_obs('ros')
-
-# # %%
-# min = env.foot_closest_to_goal(state)
-
-# # %%
