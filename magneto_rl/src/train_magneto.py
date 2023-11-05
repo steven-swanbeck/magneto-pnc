@@ -2,7 +2,7 @@
 # %%
 import sys
 # from magneto_env import MagnetoEnv
-from simple_magneto_env import SimpleMagnetoEnv
+from magneto_env import MagnetoEnv
 from magneto_utils import iterate
 from stable_baselines3.common.env_checker import check_env
 from magneto_policy_learner import CustomActorCriticPolicy
@@ -15,46 +15,46 @@ def main ():
     # . Trying to learn SOMETHING
     path = '/home/steven/magneto_ws/outputs/'
     
-    env = SimpleMagnetoEnv(render_mode="human", sim_mode="grid")
+    env = MagnetoEnv(render_mode="human", sim_mode="grid")
     rel_path = 'simple_walking/'
     
-    # . Training    
-    # - Start from scratch or load specified weights
-    # model = PPO("MlpPolicy", env=env, verbose=1)
-    model = PPO.load(path + rel_path + 'breakpoint.zip', env=env)
+    # # . Training    
+    # # - Start from scratch or load specified weights
+    # # model = PPO("MlpPolicy", env=env, verbose=1)
+    # model = PPO.load(path + rel_path + 'breakpoint.zip', env=env)
     
-    # # - Training
-    try:
-        model.learn(total_timesteps=100000, progress_bar=True)
+    # # # - Training
+    # try:
+    #     model.learn(total_timesteps=100000, progress_bar=True)
         
-        for i in range(10):
-            obs, _ = env.reset()
-            over = False
-            counter = 0
-            while not over:
-                action, _states = model.predict(obs)
-                obs, rewards, over, _, _ = env.step(action)
-                env.render()
-                counter += 1
-                print(counter)
-        env.close()
+    #     for i in range(10):
+    #         obs, _ = env.reset()
+    #         over = False
+    #         counter = 0
+    #         while not over:
+    #             action, _states = model.predict(obs)
+    #             obs, rewards, over, _, _ = env.step(action)
+    #             env.render()
+    #             counter += 1
+    #             print(counter)
+    #     env.close()
         
-    finally:
-        model.save(path + rel_path + 'breakpoint.zip')
+    # finally:
+    #     model.save(path + rel_path + 'breakpoint.zip')
     
-    # # . Evaluation
-    # model = PPO.load(path + rel_path + 'breakpoint.zip')
+    # . Evaluation
+    model = PPO.load(path + rel_path + 'breakpoint.zip')
     
-    # for i in range(10):
-    #     obs, _ = env.reset()
-    #     over = False
-    #     counter = 0
-    #     while not over:
-    #         action, _states = model.predict(obs)
-    #         obs, rewards, over, _, _ = env.step(action)
-    #         env.render()
-    #         counter += 1
-    # env.close()
+    for i in range(10):
+        obs, _ = env.reset()
+        over = False
+        counter = 0
+        while not over:
+            action, _states = model.predict(obs)
+            obs, rewards, over, _, _ = env.step(action)
+            env.render()
+            counter += 1
+    env.close()
 
 if __name__ == "__main__":
     main()
