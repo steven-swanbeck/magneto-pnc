@@ -11,14 +11,14 @@ from copy import deepcopy
 class SimpleSimPlugin(object):
     
     # WIP
-    def __init__(self, render_mode, render_fps) -> None:
+    def __init__(self, render_mode, render_fps, magnetic_seeds=10) -> None:
         self.link_idx = {
             'AR':0,
             'AL':1,
             'BL':2,
             'BR':3,
         }
-        self.leg_reach = np.array([0.1, 0.35])
+        self.leg_reach = np.array([0.08, 0.35])
         self.wall_size = 5
         # self.mag_map = MagnetismMapper(self.wall_size, self.wall_size)
         self.render_mode = render_mode
@@ -44,7 +44,7 @@ class SimpleSimPlugin(object):
         self.tolerable_foot_displacement = np.array([0.08, 0.35])
         
         self.mag_seeder = MagneticSeeder()
-        raw_map = self.mag_seeder.generate_map(10)
+        raw_map = self.mag_seeder.generate_map(magnetic_seeds)
         self.game_background = self.mag_seeder.transform_image_into_pygame(raw_map)
     
     def report_state (self):

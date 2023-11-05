@@ -82,6 +82,9 @@ class MagneticSeeder (object):
             int(coords[0] * (self.im_height / (2 * self.wall_width)) + self.im_height / 2),
             int(coords[1] * (self.im_width / (2 * self.wall_height)) + self.im_width / 2),
         ])
+        for ii in range(2):
+            if output[ii] > 500:
+                output[ii] = 500
         return output
     
     def cartesian_to_pygame_coordinates (self, coords):
@@ -89,6 +92,9 @@ class MagneticSeeder (object):
             int(coords[1] * (self.im_width / (2 * self.wall_width)) + self.im_width / 2),
             int(coords[0] * (self.im_height / (2 * self.wall_height)) + self.im_height / 2),
         ])
+        for ii in range(2):
+            if output[ii] > 499:
+                output[ii] = 499
         return output
     
     def lookup_magnetism_modifier (self, coords):

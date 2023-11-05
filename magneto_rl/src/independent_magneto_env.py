@@ -19,25 +19,25 @@ import csv
 class SimpleMagnetoEnv (Env):
     metadata = {"render_modes":["human", "rgb_array"], "render_fps":10}
     
-    def __init__ (self, render_mode=None, sim_mode="full"):
+    def __init__ (self, render_mode=None, sim_mode="full", magnetic_seeds=10):
         super(SimpleMagnetoEnv, self).__init__()
         
         self.sim_mode = sim_mode
         if self.sim_mode == "full":
             self.plugin = MagnetoRLPlugin()
         else:
-            self.plugin = SimpleSimPlugin(render_mode, self.metadata["render_fps"])
+            self.plugin = SimpleSimPlugin(render_mode, self.metadata["render_fps"], magnetic_seeds)
             self.render_mode = render_mode
         
         act_low = np.array([-1, -1, -1])
         act_high = np.array([1, 1, 1])
         self.action_space = spaces.Box(low=act_low, high=act_high, dtype=np.float32)
         
-        x_min_global = -5. # +
-        x_max_global = 5. # +
+        x_min_global = -10. # +
+        x_max_global = 10. # +
         yaw_min = -np.pi
-        y_min_global = -5. # +
-        y_max_global = 5. # +
+        y_min_global = -10. # +
+        y_max_global = 10. # +
         goal_min_x = -5.
         goal_max_x = 5.
         yaw_max = np.pi
@@ -53,10 +53,8 @@ class SimpleMagnetoEnv (Env):
             x_min_global, y_min_global,
             x_min_global, y_min_global,
             x_min_global, y_min_global,
-            x_min_global, y_min_global,
         ])
         obs_high = np.array([
-            # x_max_global, y_max_global,
             x_max_global, y_max_global,
             x_max_global, y_max_global,
             x_max_global, y_max_global,
@@ -82,6 +80,14 @@ class SimpleMagnetoEnv (Env):
         
         # . Taking specified action
         success = self.plugin.update_action(self.link_idx_lookup[action.idx], action.pose)
+        # walk_order = np.random.permutation([0, 1, 2, 3])
+        # success = self.plugin.update_action(self.link_idx_lookup[walk_order[0]], action.pose)
+        # # self.screenshot()
+        # success = self.plugin.update_action(self.link_idx_lookup[walk_order[1]], action.pose)
+        # # self.screenshot()
+        # success = self.plugin.update_action(self.link_idx_lookup[walk_order[2]], action.pose)
+        # # self.screenshot()
+        # success = self.plugin.update_action(self.link_idx_lookup[walk_order[3]], action.pose)
         
         # . Observation and info
         obs_raw = self._get_obs(format='ros')
@@ -119,7 +125,18 @@ class SimpleMagnetoEnv (Env):
             reward = 1000
             # print(f'Reached goal! Reward set to {reward}')
         else:
-            curr = np.array([state.body_pose.position.x, state.body_pose.position.y])
+            # curr = np.array([state.body_pose.position.x, state.body_pose.position.y])
+            # TODO! provide reward to each foot for where it is instead of the base
+            # ! Make sure these are correct mappings!
+            if action.idx == 0:
+                curr = np.array([state.foot0.pose.position.x, state.foot0.pose.position.y])
+            elif action.idx == 1:
+                curr = np.array([state.foot1.pose.position.x, state.foot1.pose.position.y])
+            elif action.idx == 2:
+                curr = np.array([state.foot2.pose.position.x, state.foot2.pose.position.y])
+            elif action.idx == 3:
+                curr = np.array([state.foot3.pose.position.x, state.foot3.pose.position.y])
+                
             reward = -1 * self.reward_paraboloid.eval(curr)
             # print(f'curr: {curr}, reward: {reward}')
         
@@ -174,9 +191,7 @@ class SimpleMagnetoEnv (Env):
         self.action_history = []
         self.is_episode_running = True
         self.timesteps = 0
-        # self.goal = np.array([random.uniform(-3.0, 3.0),random.uniform(-3.0, 3.0)]) # ! REMEMBER I'M FIXING THIS
-        # self.goal = np.array([random.uniform(-0.5, 0.5),random.uniform(-0.5, 0.5)]) # ! REMEMBER I'M FIXING THIS
-        self.goal = np.array([random.uniform(-4.5, 4.5),random.uniform(-4.5, 4.5)]) # ! REMEMBER I'M FIXING THIS
+        self.goal = np.array([random.uniform(-4.5, 4.5),random.uniform(-4.5, 4.5)])
         self.reward_paraboloid = paraboloid(self.goal)
         if (self.render_mode == "rgb_array") or (self.render_mode == "human"):
             self.plugin.update_goal(self.goal)
@@ -234,9 +249,9 @@ class SimpleMagnetoEnv (Env):
 
     def gym_2_action (self, gym_action:np.array) -> MagnetoAction:
         action = MagnetoAction()
-        action.idx = self.get_foot_from_action(gym_action[0])   
-        action.pose.position.x = self.max_foot_step_size * gym_action[1]
-        action.pose.position.y = self.max_foot_step_size * gym_action[2]
+        action.pose.position.x = self.max_foot_step_size * gym_action[0]
+        action.pose.position.y = self.max_foot_step_size * gym_action[1]
+        action.idx = self.get_foot_from_action(gym_action[2])   
         return action
     
     def state_2_gym (self, state:MagnetoState) -> np.array:
@@ -244,14 +259,59 @@ class SimpleMagnetoEnv (Env):
         
         relative_goal = global_to_body_frame(np.array([state.body_pose.position.x, state.body_pose.position.y]), body_yaw, self.goal)
         
-        outs = extract_ground_frame_positions(state)
+        # outs = extract_ground_frame_positions(state)
         # body_pos = np.array([outs['body'][0][0], outs['body'][1][0]])
-        foot0_pos = np.array([outs['feet'][0][0][0], outs['feet'][0][1][0]])
-        foot1_pos = np.array([outs['feet'][1][0][0], outs['feet'][1][1][0]])
-        foot2_pos = np.array([outs['feet'][2][0][0], outs['feet'][2][1][0]])
-        foot3_pos = np.array([outs['feet'][3][0][0], outs['feet'][3][1][0]])
+        # foot0_pos = np.array([outs['feet'][0][0][0], outs['feet'][0][1][0]])
+        # foot1_pos = np.array([outs['feet'][1][0][0], outs['feet'][1][1][0]])
+        # foot2_pos = np.array([outs['feet'][2][0][0], outs['feet'][2][1][0]])
+        # foot3_pos = np.array([outs['feet'][3][0][0], outs['feet'][3][1][0]])
         
         # gym_obs = np.concatenate((body_pos, foot0_pos, foot1_pos, foot2_pos, foot3_pos, relative_goal), dtype=np.float32)
-        gym_obs = np.concatenate((foot0_pos, foot1_pos, foot2_pos, foot3_pos, relative_goal), dtype=np.float32)
+        # gym_obs = np.concatenate((foot0_pos, foot1_pos, foot2_pos, foot3_pos, relative_goal), dtype=np.float32)
+        
+        # # ? maybe just return the magnetism scaling factor experienced by the foot closest to the goal
+        # closest_foot_index = self.foot_closest_to_goal(state)
+        # if closest_foot_index == 0:
+        #     mag = state.foot0.magnetic_force
+        # elif closest_foot_index == 1:
+        #     mag = state.foot1.magnetic_force
+        # elif closest_foot_index == 2:
+        #     mag = state.foot2.magnetic_force
+        # elif closest_foot_index == 3:
+        #     mag = state.foot3.magnetic_force
+        # gym_obs = np.concatenate((relative_goal, np.array([mag])), dtype=np.float32)
+        
+        relative_foot0 = global_to_body_frame(np.array([state.body_pose.position.x, state.body_pose.position.y]), body_yaw, np.array([state.foot0.pose.position.x, state.foot0.pose.position.y]))
+        relative_foot1 = global_to_body_frame(np.array([state.body_pose.position.x, state.body_pose.position.y]), body_yaw, np.array([state.foot1.pose.position.x, state.foot1.pose.position.y]))
+        relative_foot2 = global_to_body_frame(np.array([state.body_pose.position.x, state.body_pose.position.y]), body_yaw, np.array([state.foot2.pose.position.x, state.foot2.pose.position.y]))
+        relative_foot3 = global_to_body_frame(np.array([state.body_pose.position.x, state.body_pose.position.y]), body_yaw, np.array([state.foot3.pose.position.x, state.foot3.pose.position.y]))
+        
+        gym_obs = np.concatenate((relative_foot0, relative_foot1, relative_foot2, relative_foot3, relative_goal), dtype=np.float32)
         
         return gym_obs
+    
+    def foot_closest_to_goal (self, state:MagnetoState, body_yaw=0):
+        feet_pos = [
+            np.array([state.foot0.pose.position.x, state.foot0.pose.position.y]),
+            np.array([state.foot1.pose.position.x, state.foot1.pose.position.y]),
+            np.array([state.foot2.pose.position.x, state.foot2.pose.position.y]),
+            np.array([state.foot3.pose.position.x, state.foot3.pose.position.y]),
+        ]
+        relative_distances = np.zeros((4,), np.float32)
+        for ii in range(len(feet_pos)):
+            relative_distances[ii] = np.linalg.norm(global_to_body_frame(self.goal, body_yaw, feet_pos[ii]), 2)
+        return np.argmin(relative_distances)
+
+# # %%
+# env = SimpleMagnetoEnv(sim_mode="simple")
+
+# # %%
+# env.reset()
+
+# # %%
+# state = env._get_obs('ros')
+
+# # %%
+# min = env.foot_closest_to_goal(state)
+
+# # %%
