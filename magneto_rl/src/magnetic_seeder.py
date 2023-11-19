@@ -26,7 +26,12 @@ class MagneticSeeder (object):
         map = self.clip_map(seeded_image)
         
         self.map = self.convert_mask_to_image(map)
-        return self.map
+        
+        converted_seeds = []
+        for ii in range(len(seed_locations)):
+            converted_seeds.append(self.image_to_cartesian_coordinates(seed_locations[ii]))
+        
+        return self.map, converted_seeds, map.astype(np.uint8)
         
     def seed_gaussian_decay (self, image, seeds):
         for seed in seeds:
@@ -51,9 +56,7 @@ class MagneticSeeder (object):
             for jj in range(image.shape[1]):
                 if image[ii, jj] < 0:
                     image[ii, jj] = 0
-        
-                # if (np.linalg.norm(np.array([ii, jj]) - np.array([2 * 250, 2 * 250]))) < (0.3 / self.pixel_density):
-                #     image[ii, jj] = 0
+
         return image
     
     def clip_map (self, map):
@@ -62,6 +65,7 @@ class MagneticSeeder (object):
         return clip
     
     def convert_mask_to_image (self, image):
+        self.single_channel_map = image
         blank_image = np.zeros((image.shape[0], image.shape[1], 3), dtype=np.uint8)
         blank_image[:,:,0] = image
         blank_image[:,:,1] = image
@@ -83,8 +87,17 @@ class MagneticSeeder (object):
             int(coords[1] * (self.im_width / (2 * self.wall_height)) + self.im_width / 2),
         ])
         for ii in range(2):
-            if output[ii] > 500:
-                output[ii] = 500
+            if output[ii] > 499:
+                output[ii] = 499
+            elif output[ii] < 0:
+                output[ii] = 0
+        return output
+    
+    def image_to_cartesian_coordinates (self, coords):
+        output = np.array([
+            (2 * self.wall_width / self.im_height) * (coords[0] - self.im_height / 2),
+            (2 * self.wall_height / self.im_width) * (coords[1] - self.im_width / 2),
+        ])
         return output
     
     def cartesian_to_pygame_coordinates (self, coords):
@@ -102,35 +115,3 @@ class MagneticSeeder (object):
             return 1.
         pixel_coords = self.cartesian_to_image_coordinates(coords)
         return float(255 - self.map[pixel_coords[0], pixel_coords[1]][0]) / 255
-    
-    # TODO add utility to make sure area around robot starting position and goal are both safe
-
-# # %%
-# import matplotlib.pyplot as plt
-
-# seeder = MagneticSeeder()
-# map = seeder.generate_map(100)
-
-# plt.imshow(map)
-# plt.show()
-
-# # %%
-# map2 = seeder.transform_image_into_pygame(map)
-
-# plt.imshow(map2)
-# plt.show()
-
-# # %%
-# coords = np.array([5, 0])
-
-# p1 = seeder.cartesian_to_image_coordinates(coords)
-# p2 = seeder.cartesian_to_pygame_coordinates(coords)
-
-# print(f'{p1}\n{p2}')
-
-# # %%
-# coords = np.array([-4.4, 2.])
-# value = seeder.lookup_magnetism_modifier(coords)
-# print(value)
-
-# # %%

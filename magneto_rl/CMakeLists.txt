@@ -63,6 +63,7 @@ add_service_files(
   ReportMagnetoState.srv
   ResetMagnetoSim.srv
   UpdateMagnetoAction.srv
+  MagnetismModifierRequest.srv
 )
 
 ## Generate actions in the 'action' folder

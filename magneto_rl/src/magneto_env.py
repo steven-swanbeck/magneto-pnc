@@ -1,103 +1,73 @@
 #!/usr/bin/env python3
+
+# TODO
+# - try independent leg motions
+# - reduce paraboloid reward
+# - add negative penalty for failing to make progress (with independent foot motions)
+
+# %%
 import numpy as np
 import gymnasium as gym
 from gymnasium import Env, spaces
-from magneto_plugin import MagnetoRLPlugin
+try:
+    from magneto_ros_plugin import MagnetoRLPlugin
+except ImportError:
+    print("Unable to import ROS-based plugin!")
 from magneto_utils import *
-
-from PIL import ImageGrab
+from magneto_game_plugin import GamePlugin
+from copy import deepcopy
+import pyscreenshot as ImageGrab
 import moviepy.video.io.ImageSequenceClip
 from datetime import datetime
 import csv
+from copy import deepcopy
 
 class MagnetoEnv (Env):
-    metadata = {"render_modes":[], "render_fps":0}
+    metadata = {"render_modes":["human", "rgb_array"], "render_fps":10}
+    # metadata = {"render_modes":["human", "rgb_array"], "render_fps":1}
     
-    # DONE
-    def __init__ (self, render_mode=None):
+    def __init__ (self, render_mode=None, sim_mode="full", magnetic_seeds=10):
         super(MagnetoEnv, self).__init__()
         
-        self.plugin = MagnetoRLPlugin()
+        self.sim_mode = sim_mode
+        if self.sim_mode == "full":
+            self.plugin = MagnetoRLPlugin(render_mode, self.metadata["render_fps"], magnetic_seeds)
+        else:
+            self.plugin = GamePlugin(render_mode, self.metadata["render_fps"], magnetic_seeds)
+            self.render_mode = render_mode
         
-        # TODO add in self.action_space and self.observation_space variable, similar to examples below:
-        # > https://www.gymlibrary.dev/api/spaces/
-        # + self.action_space = spaces.Discrete(N_DISCRETE_ACTIONS)
-        # + self.observation_space = spaces.Box(low=0, hgih=255, shape=(N_CHANNELS, HEIGHT, WIDTH), dtype=np.uint8)
-        '''
-        Action space should be something like this (I suppose just a box of continuous variables):
-        1. One value for which leg we are wanting to move (round to nearest whole number between 0 and 4 in the step method)
-        2. Continuous xy values (likely bounded by some appropriate thresholds, -0.25 and 0.25, perhaps)
-        '''
-        # - Format is foot id, x step size, y step size
-        # act_low = np.array([-0.5, -0.2, -0.2])
-        # act_high = np.array([3.49, 0.2, 0.2])
-        act_low = np.array([-1, -1, -1])
-        act_high = np.array([1, 1, 1])
-        self.action_space = spaces.Box(low=act_low, high=act_high, dtype=np.float32)
+        self.step_action_discretization = 7
+        self.x_step = {0:-0.08, 1:-0.04, 2:-0.02, 3:0.0, 4:0.02, 5:0.04, 6:0.08}
+        self.y_step = {0:-0.08, 1:-0.04, 2:-0.02, 3:0.0, 4:0.02, 5:0.04, 6:0.08}
+        self.action_space = spaces.Discrete(self.step_action_discretization**2)
         
-        '''
-        Observation space should be something like this:
-        1. Robot pose (xyz, qxyz) bounded within workspace? Limits xyz to be constrained on plane and qxyz to form unit quaternion
-        2. Magnetic force at each foot bounded between 0 and the maximum force specified in the target parameter
-        Is that it???
-        '''
-        # . x, y, yaw, foot0_mag, foot0_x, foot0_y, foot1_mag, foot1_x, foot1_y, foot2_mag, foot2_x, foot2_y, foot3_mag, foot3_x, foot3_y, goal_x, goal_y
-        # - x and y should be set based on the limits of the wall it is on, yaw can be full 360, magnetic forces are bounded between 0 and the known max force
-        
-        x_min_global = -5. # +
-        x_max_global = 5. # +
-        y_min_global = -5. # +
-        y_max_global = 5. # +
-        yaw_min = -np.pi
-        yaw_max = np.pi
-        mag_min = 0. # +
-        mag_max = 147. # + this should come from loaded param (add function to plugin that returns dictionary of all these needed values)
-        goal_min_x = -5.
-        goal_max_x = 5.
-        goal_min_y = -5.
-        goal_max_y = 5.
-        
-        # TODO I should also add image support to this to receive the magnetic gradient
-        obs_low = np.array([
-            x_min_global, y_min_global, yaw_min,
-            mag_min, x_min_global, y_min_global,
-            mag_min, x_min_global, y_min_global,
-            mag_min, x_min_global, y_min_global,
-            mag_min, x_min_global, y_min_global,
-            goal_min_x, goal_min_y, 
-        ])
-        obs_high = np.array([
-            x_max_global, y_max_global, yaw_max,
-            mag_max, x_max_global, y_max_global,
-            mag_max, x_max_global, y_max_global,
-            mag_max, x_max_global, y_max_global,
-            mag_max, x_max_global, y_max_global,
-            goal_max_x, goal_max_y,
-        ])
-        self.observation_space = spaces.Box(low=obs_low, high=obs_high, dtype=np.float32)
+        self.observation_space = spaces.Dict({
+            'goal': spaces.Box(low=-10, high=10, shape=(2,)),
+            # 'magnetism': spaces.Box(low=0, high=1, shape=(4,)),
+        })
         
         self.link_idx_lookup = {0:'AR', 1:'AL', 2:'BL', 3:'BR'}
-        self.max_foot_step_size = 0.12 # ! remember this is here!
+        
+        self.max_timesteps = 3000
         
         self.state_history = []
         self.action_history = []
         self.is_episode_running = False
         self.screenshots = []
-        self.goal = np.array([-1, 0]) # ! REMEMBER I'M FIXING THIS
     
-    # WIP
-    def step (self, gym_action, check_status:bool=True):
-        self.state_history.append(MagnetoState(self.plugin.report_state()))
+    def step (self, gym_action):
+        self.state_history.append(MagnetoState(deepcopy(self.plugin.report_state())))
         
         # . Converting action from Gym format to one used by ROS plugin and other class members
         action = self.gym_2_action(gym_action)
         self.action_history.append(action)
         
-        # . Taking specified action
-        success = self.plugin.update_action(self.link_idx_lookup[action.idx], action.pose)
-        
-        if not check_status:
-            return success
+        # # # . Taking specified action
+        walk_order = np.random.permutation([0, 1, 2, 3])
+        success = self.plugin.update_action(self.link_idx_lookup[walk_order[0]], action.pose)
+        success = self.plugin.update_action(self.link_idx_lookup[walk_order[1]], action.pose)
+        success = self.plugin.update_action(self.link_idx_lookup[walk_order[2]], action.pose)
+        success = self.plugin.update_action(self.link_idx_lookup[walk_order[3]], action.pose)
         
         # . Observation and info
         obs_raw = self._get_obs(format='ros')
@@ -109,48 +79,86 @@ class MagnetoEnv (Env):
         # .Converting observation to format required by Gym
         obs = self.state_2_gym(obs_raw)
         
-        print('-----------------')
-        print(f'Step reward: {reward}')
-        print(f'Goal: {self.goal}')
-        print(f'Position: {np.array([obs_raw.body_pose.position.x, obs_raw.body_pose.position.y])}')
-        print('-----------------')
-        # self.screenshot()
+        if self.sim_mode == "full":
+            print('-----------------')
+            print(f'Step reward: {reward}')
+            print(f'Distance from goal: {np.linalg.norm(self.goal - np.array([obs_raw.body_pose.position.x, obs_raw.body_pose.position.y]), 1)}')
+            print(f'Body goal: {self.goal}')
+            print(f'Body position: {np.array([obs_raw.body_pose.position.x, obs_raw.body_pose.position.y])}')
+            print(f'Obs: {obs}')
+            print('-----------------')
         self.timesteps += 1
+        
+        truncated = False
+        if self.timesteps > self.max_timesteps:
+            truncated = True
+            is_terminated = True
         
         return obs, reward, is_terminated, False, info
     
-    # WIP
-    def calculate_reward (self, state, action):
+    def calculate_reward (self, state, action, strategy="paraboloid"):
         is_terminated:bool = False
         
-        if self.has_fallen(state): # . if the robot has fallen
+        if self.has_fallen(state):
             is_terminated = True
             reward = -1000
-            # print(f'Fall detected! Reward set to {reward}')
-        # elif self.at_goal(state): # . if the robot has reached its goal position
-        elif self.foot_at_goal(state): # . checking if any of the feet has reached the goal instead of the body
+        elif self.at_goal(state, 0.5):
             is_terminated = True
             reward = 1000
-            # print(f'Reached goal! Reward set to {reward}')
         else:
-            # ? The insufficient contact penalty is removed for now
-            # - Flat penalty for each insufficient contact, continuous reward relative to improvement toward goal position
-            # insufficient_contact_multiplier = -3
-            # insufficient_contacts = self.making_insufficient_contact(state)
-            
-            # reward = insufficient_contact_multiplier * insufficient_contacts
-            # print(f'Insufficient contacts detected at {insufficient_contacts}/4 feet, reward set to {reward}')
-            
-            reward = 0
-            
-            proximity_reward_multiplier = 20
-            if len(self.state_history) > 0:
-                # - check if foot index from action got closer to the goal, generate proximity reward accordingly
-                proximity_change = self.calculate_distance_change(state, action)
-                reward += proximity_reward_multiplier * proximity_change
-                # print(f'Proximity change for foot {action.idx} calculated as {proximity_change}, reward updated to {reward}')
+            if strategy == "paraboloid":
+                curr = np.array([state.body_pose.position.x, state.body_pose.position.y])
+                paraboloid_scaling_factor = 0.01
+                reward = -1 * paraboloid_scaling_factor * self.reward_paraboloid.eval(curr)
+                gaussian_scaling_factor = 1
+                for ii in range(len(self.reward_gaussians)):
+                    reward += -1 * gaussian_scaling_factor * self.reward_gaussians[ii].eval(curr)
         
         return reward, is_terminated
+    
+    def proximity_reward (self, state, action, multipliers):
+        if len(self.state_history) < 1:
+            return 0
+        
+        proximity_change = self.calculate_distance_change(state, action)
+        
+        if proximity_change > 0:
+            return proximity_change * multipliers[1]
+        return proximity_change * multipliers[0]
+    
+    def get_state_history (self):
+        return self.state_history
+    
+    def calculate_distance_change (self, state, action):
+        if action.idx == 0:
+            foot_pos = np.array([state.foot0.pose.position.x, state.foot0.pose.position.y])
+            prev_foot_pos = np.array([self.state_history[-1].foot0.pose.position.x, self.state_history[-1].foot0.pose.position.y])
+        elif action.idx == 1:
+            foot_pos = np.array([state.foot1.pose.position.x, state.foot1.pose.position.y])
+            prev_foot_pos = np.array([self.state_history[-1].foot1.pose.position.x, self.state_history[-1].foot1.pose.position.y])
+        elif action.idx == 2:
+            foot_pos = np.array([state.foot2.pose.position.x, state.foot2.pose.position.y])
+            prev_foot_pos = np.array([self.state_history[-1].foot2.pose.position.x, self.state_history[-1].foot2.pose.position.y])
+        elif action.idx == 3:
+            foot_pos = np.array([state.foot3.pose.position.x, state.foot3.pose.position.y])
+            prev_foot_pos = np.array([self.state_history[-1].foot3.pose.position.x, self.state_history[-1].foot3.pose.position.y])
+        
+        body_pos = np.array([state.body_pose.position.x, state.body_pose.position.y])
+        prev_body_pos = np.array([self.state_history[-1].body_pose.position.x, self.state_history[-1].body_pose.position.y])
+        
+        prev_body_goal = self.goal - prev_body_pos
+        prev_foot_goal = self.goal - prev_foot_pos
+        
+        curr_body_goal = self.goal - body_pos
+        curr_foot_goal = self.goal - foot_pos
+        
+        prev_proj = np.dot(prev_foot_goal, prev_body_goal)
+        curr_proj = np.dot(curr_foot_goal, curr_body_goal)
+        
+        prev_dist = np.linalg.norm(prev_body_pos, 2)
+        curr_dist = np.linalg.norm(body_pos, 2)
+        
+        return prev_dist - curr_dist
     
     def screenshot (self):
         self.screenshots.append(np.array(ImageGrab.grab(bbox=(100, 200, 1800, 1050))))
@@ -160,72 +168,72 @@ class MagnetoEnv (Env):
         
         if len(self.screenshots) > 0:
             clip = moviepy.video.io.ImageSequenceClip.ImageSequenceClip(self.screenshots, fps=fps)
-            clip.write_videofile('/home/steven/magneto_ws/outputs/full_walking/' + stamp + '.mp4')
+            clip.write_videofile('/home/steven/magneto_ws/outputs/single_walking/' + stamp + '.mp4')
             
             fields = [stamp, str(self.timesteps), str(self.goal[0]), str(self.goal[1]), str(self.state_history[-1].body_pose.position.x), str(self.state_history[-1].body_pose.position.y)]
-            with open(r'/home/steven/magneto_ws/outputs/full_walking/log.csv', 'a') as f:
+            with open(r'/home/steven/magneto_ws/outputs/single_walking/log.csv', 'a') as f:
                 writer = csv.writer(f)
                 writer.writerow(fields)
         
         return stamp
     
-    # DONE
     def _get_obs (self, format='gym'):
         state = MagnetoState(self.plugin.report_state())
         if format == 'gym':
             return self.state_2_gym(state)
         return state
     
-    # DONE
     def _get_info (self):
-        # . Get auxillary information about robot/sim that may be helpful?
         return {}
-        return {"distance": np.linalg.norm(self._agent_location - self._target_location, ord=1)}
-    
-    # TODO
+
     def render (self):
-        raise NotImplementedError
+        # if (self.render_mode == "rgb_array") or (self.render_mode == "human"):
+        self.plugin._render_frame()
     
-    # DONE
     def reset (self, seed=None, options=None):
         super().reset(seed=seed)
-        # WIP
         if self.is_episode_running:
             self.terminate_episode()
         self.begin_episode()
         
         obs = self._get_obs()
         info = self._get_info()
+        
         return obs, info
     
-    # DONE
     def begin_episode (self) -> bool:
         self.state_history = []
         self.action_history = []
         self.is_episode_running = True
         self.timesteps = 0
-        # self.goal = np.array([random.uniform(-2.5, 2.5),random.uniform(-2.5, 2.5)]) # ! REMEMBER I'M FIXING THIS
-        print(f'Sim initialized with a goal postion of {self.goal}')
-        return self.plugin.begin_sim_episode()
+        self.goal = np.array([random.uniform(-4.5, 4.5),random.uniform(-4.5, 4.5)])
+        # self.goal = np.array([-1, 1])
+        self.reward_paraboloid = paraboloid(self.goal)
+        # if (self.render_mode == "rgb_array") or (self.render_mode == "human"):
+        self.plugin.update_goal(self.goal)
+        self.plugin.begin_sim_episode()
+        self.reward_gaussians = []
+        for ii in range(len(self.plugin.seed_locations)):
+            self.reward_gaussians.append(gaussian(self.plugin.seed_locations[ii], 0.45)) #0.6
+        self.single_channel_map = self.plugin.single_channel_map
+        return True
 
-    # DONE
     def terminate_episode (self) -> bool:
         self.is_episode_running = False
         self.export_video()
         return self.plugin.end_sim_episode()
     
-    # DONE
     def close (self):
         self.is_episode_running = False
         return self.terminate_episode()
 
-    # DONE
     def has_fallen (self, state, tol_pos=0.18, tol_ori=1.2):
         if self.making_insufficient_contact(state) == 4:
             return True
+        if self.sim_mode != "full":
+            return self.plugin.has_fallen()
         return False
     
-    # DONE
     def making_insufficient_contact (self, state, tol=0.002):
         positions = extract_ground_frame_positions(state)
         insufficient = 0
@@ -235,30 +243,23 @@ class MagnetoEnv (Env):
                 error_msg += f'\n   Foot {key}! Value is {value[2][0]} and allowable tolerance is set to {tol}.'
                 insufficient += 1
         if insufficient > 0:
-            # error_msg = 'ERROR! ' + error_msg
             print(error_msg)
         return insufficient
 
-    # DONE
-    def at_goal (self, obs, tol=0.01):
+    def at_goal (self, obs, tol=0.20):
         if np.linalg.norm(np.array([obs.body_pose.position.x, obs.body_pose.position.y]) - self.goal) < tol:
             return True
         return False
     
     def foot_at_goal (self, obs, tol=0.01):
-        feets = np.array([
-            [obs.foot0.pose.position.x, obs.foot0.pose.position.y],
-            [obs.foot1.pose.position.x, obs.foot1.pose.position.y],
-            [obs.foot2.pose.position.x, obs.foot2.pose.position.y],
-            [obs.foot3.pose.position.x, obs.foot3.pose.position.y],
-        ])
-        for foot in feets:
-            if np.linalg.norm(foot - self.goal) < tol:
+        if np.linalg.norm(np.array([obs.foot0.pose.position.x, obs.foot0.pose.position.y]) - self.goal) < tol:
                 return True
         return False
 
-    # DONE
     def get_foot_from_action (self, x):
+        # - one-hot encoded values
+        # return np.argmax(x)
+        # - single continuous value
         if x > 0.5:
             return 3
         if x > 0.0:
@@ -267,45 +268,49 @@ class MagnetoEnv (Env):
             return 0
         return 1
 
-    # DONE
     def gym_2_action (self, gym_action:np.array) -> MagnetoAction:
         action = MagnetoAction()
-        # action.idx = return_closest(gym_action[0], [0, 1, 2, 3]) # ? deprecated to make symmetric action space for foot id
-        action.idx = self.get_foot_from_action(gym_action[0])
         
-        action.pose.position.x = self.max_foot_step_size * gym_action[1]
-        action.pose.position.y = self.max_foot_step_size * gym_action[2]
+        action.pose.position.x = self.x_step[int(gym_action / self.step_action_discretization)]
+        action.pose.position.y = self.y_step[gym_action % self.step_action_discretization]
+
+        # print(action.pose.position.x, ", ", action.pose.position.y)
         return action
     
-    # DONE
     def state_2_gym (self, state:MagnetoState) -> np.array:
         _, _, body_yaw = euler_from_quaternion(state.body_pose.orientation.w, state.body_pose.orientation.x, state.body_pose.orientation.y, state.body_pose.orientation.z)
         
-        gym_obs = np.array([state.body_pose.position.x, state.body_pose.position.y, body_yaw,
-                            state.foot0.magnetic_force, state.foot0.pose.position.x, state.foot0.pose.position.y,
-                            state.foot1.magnetic_force, state.foot1.pose.position.x, state.foot1.pose.position.y,
-                            state.foot2.magnetic_force, state.foot2.pose.position.x, state.foot2.pose.position.y,
-                            state.foot3.magnetic_force, state.foot3.pose.position.x, state.foot3.pose.position.y,
-                            self.goal[0], self.goal[1],
-        ], dtype=np.float32)
-        return gym_obs
+        relative_goal = global_to_body_frame(np.array([state.body_pose.position.x, state.body_pose.position.y]), body_yaw, self.goal)
+        
+        relative_foot0 = global_to_body_frame(np.array([state.body_pose.position.x, state.body_pose.position.y]), body_yaw, np.array([state.foot0.pose.position.x, state.foot0.pose.position.y]))
+        relative_foot1 = global_to_body_frame(np.array([state.body_pose.position.x, state.body_pose.position.y]), body_yaw, np.array([state.foot1.pose.position.x, state.foot1.pose.position.y]))
+        relative_foot2 = global_to_body_frame(np.array([state.body_pose.position.x, state.body_pose.position.y]), body_yaw, np.array([state.foot2.pose.position.x, state.foot2.pose.position.y]))
+        relative_foot3 = global_to_body_frame(np.array([state.body_pose.position.x, state.body_pose.position.y]), body_yaw, np.array([state.foot3.pose.position.x, state.foot3.pose.position.y]))
 
-    def calculate_distance_change (self, state, action):
-        if action.idx == 0:
-            foot_pos = np.array([state.foot0.pose.position.x, state.foot0.pose.position.y])
-            prev_pos = np.array([self.state_history[-1].foot0.pose.position.x, self.state_history[-1].foot0.pose.position.y])
-        elif action.idx == 1:
-            foot_pos = np.array([state.foot1.pose.position.x, state.foot1.pose.position.y])
-            prev_pos = np.array([self.state_history[-1].foot1.pose.position.x, self.state_history[-1].foot1.pose.position.y])
-        elif action.idx == 2:
-            foot_pos = np.array([state.foot2.pose.position.x, state.foot2.pose.position.y])
-            prev_pos = np.array([self.state_history[-1].foot2.pose.position.x, self.state_history[-1].foot2.pose.position.y])
-        elif action.idx == 3:
-            foot_pos = np.array([state.foot3.pose.position.x, state.foot3.pose.position.y])
-            prev_pos = np.array([self.state_history[-1].foot3.pose.position.x, self.state_history[-1].foot3.pose.position.y])
+        magnetic_forces = np.array([state.foot0.magnetic_force, state.foot1.magnetic_force, state.foot2.magnetic_force, state.foot3.magnetic_force])
         
-        prev_dist = np.linalg.norm(prev_pos - self.goal)
-        curr_dist = np.linalg.norm(foot_pos - self.goal)
-        # print(f'Goal: {self.goal}, prev_dist: {prev_dist} ({prev_pos}), curr_dist: {curr_dist} ({foot_pos})')
+        if self.sim_mode == "full":
+            relative_goal = -1 * relative_goal
+            relative_foot0 = -1 * relative_foot0
+            relative_foot1 = -1 * relative_foot1
+            relative_foot2 = -1 * relative_foot2
+            relative_foot3 = -1 * relative_foot3
         
-        return prev_dist - curr_dist # ? is this good or should it be scaled relative to the whole thing or something else?
+        gym_obs = {
+            'goal': relative_goal,
+            # 'magnetism': magnetic_forces,
+        }
+        
+        return gym_obs
+    
+    def foot_closest_to_goal (self, state:MagnetoState, body_yaw=0):
+        feet_pos = [
+            np.array([state.foot0.pose.position.x, state.foot0.pose.position.y]),
+            np.array([state.foot1.pose.position.x, state.foot1.pose.position.y]),
+            np.array([state.foot2.pose.position.x, state.foot2.pose.position.y]),
+            np.array([state.foot3.pose.position.x, state.foot3.pose.position.y]),
+        ]
+        relative_distances = np.zeros((4,), np.float32)
+        for ii in range(len(feet_pos)):
+            relative_distances[ii] = np.linalg.norm(global_to_body_frame(self.goal, body_yaw, feet_pos[ii]), 2)
+        return np.argmin(relative_distances)

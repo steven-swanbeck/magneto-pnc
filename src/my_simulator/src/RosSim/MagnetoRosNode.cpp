@@ -55,6 +55,7 @@ MagnetoRosNode::MagnetoRosNode(ros::NodeHandle& nh, const dart::simulation::Worl
         report_state_server_ = nh_.advertiseService("get_magneto_state", &MagnetoRosNode::reportStateInformation, this);
         action_command_server_ = nh_.advertiseService("set_magneto_action", &MagnetoRosNode::updateActionCommand, this);
         sim_reset_server_ = nh_.advertiseService("reset_magneto_sim", &MagnetoRosNode::resetSim, this);
+        magnetism_update_client_ = nh_.serviceClient<magneto_rl::MagnetismModifierRequest>("/get_magnetism_modifier");
     }
 
     // ---- SET control parameters %% motion script
@@ -127,9 +128,8 @@ void MagnetoRosNode::pluginInterface() {
     status.data = "In plot foot step result";
     status_pub_.publish(status);
 
+    // & filling in state information
     magneto_rl::FootPlacement srv;
-
-    // TODO fill in positions of feet and orientation of body here
     // Eigen::Quaternion<double> quat_ground 
     //                         = Eigen::Quaternion<double>( 
     //                             ground_->getBodyNode("ground_link")
@@ -340,6 +340,14 @@ bool MagnetoRosNode::updateActionCommand(magneto_rl::UpdateMagnetoAction::Reques
     latest_motion_data_.swing_height = 0.05;
     bool is_bodyframe {true};
     latest_motion_data_.pose = POSE_DATA(pos_command, ori_command, is_bodyframe);
+
+    Eigen::VectorXd p_base = robot_->getBodyNode(MagnetoBodyNode::base_link)->getWorldTransform().translation();
+    magneto_rl::MagnetismModifierRequest srv;
+    srv.request.point.x = p_base[0];
+    srv.request.point.y = p_base[1];
+    if (magnetism_update_client_.call(srv)) {
+        magnetism_modifier_ =  srv.response.modifier;
+    }
 
     res.success = true;
     return 1;
@@ -574,7 +582,17 @@ void MagnetoRosNode::ApplyMagneticForce()  {
             // std::cout<<"res: dist = "<<contact_distance_[it.first]<<", distance_ratio=" << distance_ratio << std::endl;
         }       
         force_w = quat_ground.toRotationMatrix() * force;
+
         // TODO add in modifier here using service call to env
+        // Eigen::VectorXd p_base = robot_->getBodyNode(MagnetoBodyNode::base_link)->getWorldTransform().translation();
+        // magneto_rl::MagnetismModifierRequest srv;
+        // srv.request.point.x = p_base[0];
+        // srv.request.point.y = p_base[1];
+        // if (magnetism_update_client_.call(srv)) {
+        //     force[2] = force[2] * srv.response.modifier;
+        // }
+        force[2] = 0.5 * magnetism_modifier_ * force[2];
+
         // - need to store a magnetism value as a class variable for the node, print out robot_->getBodyNode(it.first) to see what it says
         robot_->getBodyNode(it.first)->addExtForce(force, location, is_force_local);
         // robot_->getBodyNode(it.first)->addExtForce(force_w, location, is_force_global);

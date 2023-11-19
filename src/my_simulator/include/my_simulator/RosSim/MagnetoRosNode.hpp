@@ -20,6 +20,7 @@
 #include <magneto_rl/ReportMagnetoState.h>
 #include <magneto_rl/ResetMagnetoSim.h>
 #include <magneto_rl/FootState.h>
+#include <magneto_rl/MagnetismModifierRequest.h>
 
 class SimulatorParameter{
   public: 
@@ -152,6 +153,8 @@ class MagnetoRosNode : public dart::gui::osg::WorldNode {
     ros::ServiceServer report_state_server_;
     ros::ServiceServer action_command_server_;
     ros::ServiceServer sim_reset_server_;
+    ros::ServiceClient magnetism_update_client_;
+    float magnetism_modifier_ {1.f};
 
     bool should_use_rl_;
     bool ready_for_rl_input_;

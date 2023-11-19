@@ -1,10 +1,28 @@
 #!/usr/bin/env python3
 import numpy as np
 import math
-from geometry_msgs.msg import Pose
+# from geometry_msgs.msg import Pose
 import random
 import tqdm
 from scipy.spatial.transform import Rotation as R
+
+class Pose ():
+    def __init__(self) -> None:
+        self.position = Point()
+        self.orientation = Quaternion()
+
+class Point ():
+    def __init__(self) -> None:
+        self.x = 0
+        self.y = 0
+        self.z = 0
+
+class Quaternion ():
+    def __init__(self) -> None:
+        self.w = 0
+        self.x = 0
+        self.y = 0
+        self.z = 0
 
 class MagnetoAction (object):
     def __init__(self, idx:int=None, pose:Pose=None, link_idx:str=None) -> None:
@@ -147,3 +165,12 @@ class paraboloid (object):
         
     def eval(self, location:np.array) -> float:
         return (location[0] - self.w)**2 + (location[1] - self.h)**2
+
+class gaussian (object):
+    def __init__(self, origin:np.array, sigma:float) -> None:
+        self.x0 = origin[0]
+        self.y0 = origin[1]
+        self.sigma = sigma
+    
+    def eval (self, location:np.array) -> float:
+        return (1 / (2 * np.pi * self.sigma**2)) * np.exp(-1 * ((location[0] - self.x0)**2 + (location[1] - self.y0)**2) / (2 * self.sigma**2))

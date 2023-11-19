@@ -2,13 +2,11 @@
 # %%
 import numpy as np
 from magneto_utils import *
-from seed_magnetism import MagnetismMapper
 from magnetic_seeder import MagneticSeeder
 import pygame
-import time
-from copy import deepcopy
+import cv2
 
-class SimpleSimPlugin(object):
+class GamePlugin(object):
     
     # WIP
     def __init__(self, render_mode, render_fps, magnetic_seeds=10) -> None:
@@ -20,7 +18,6 @@ class SimpleSimPlugin(object):
         }
         self.leg_reach = np.array([0.08, 0.35])
         self.wall_size = 5
-        # self.mag_map = MagnetismMapper(self.wall_size, self.wall_size)
         self.render_mode = render_mode
         self.fps = render_fps
         self.window = None
@@ -42,25 +39,63 @@ class SimpleSimPlugin(object):
         self.goal = np.array([1, 1]) # !
         self.heading = 0
         self.tolerable_foot_displacement = np.array([0.08, 0.35])
+        self.tolerable_foot_angles = [
+            np.array([-2.0944, 0.5236]),
+            np.array([-0.5236, 2.0944]),
+            np.array([1.0472, 3.6652]),
+            np.array([2.6180, 5.23599]),
+        ]
         
         self.mag_seeder = MagneticSeeder()
-        raw_map = self.mag_seeder.generate_map(magnetic_seeds)
-        self.game_background = self.mag_seeder.transform_image_into_pygame(raw_map)
+        self.num_seeds = magnetic_seeds
+        self.foot_modified = False
     
     def report_state (self):
-        # TODO make sure magnetism is being reported properly
-        # for ii in range(len(self.foot_mags)):
-        #     self.foot_mags[ii] = self.mag_seeder.lookup_magnetism_modifier(np.array([self.foot_poses[ii].position.x, self.foot_poses[ii].position.y]))
         return StateRep(self.ground_pose, self.body_pose, self.foot_poses, self.foot_mags)
     
     def update_goal (self, goal):
         self.goal = goal
     
+    def verify_foot_position (self, id:int):
+        # - if distance is too large or small, replace it with a new position that satisfies the constraints
+        # TODO make sure this doesn't mutate valid inputs
+        # - making sure angle is set in range
+        self.foot_modified = False
+        angle = np.arctan2(self.foot_poses[id].position.y, self.foot_poses[id].position.x)
+        if (id == 2) or (id == 3):
+            if angle < 0:
+                angle = angle + 2 * np.pi
+                self.foot_modified = True
+        if angle < self.tolerable_foot_angles[id][0]:
+            angle = self.tolerable_foot_angles[id][0]
+            self.foot_modified = True
+        elif angle > self.tolerable_foot_angles[id][1]:
+            angle = self.tolerable_foot_angles[id][1]
+            self.foot_modified = True
+    
+        # - making sure distance is in range
+        norm = np.linalg.norm(np.array([self.foot_poses[id].position.x, self.foot_poses[id].position.y]), 2)
+        if norm > self.tolerable_foot_displacement[1]:
+            norm = self.tolerable_foot_displacement[1]
+            self.foot_modified = True
+        elif norm < self.tolerable_foot_displacement[0]:
+            norm = self.tolerable_foot_displacement[0]
+            self.foot_modified = True
+        
+        self.foot_poses[id].position.x = norm * np.cos(angle)
+        self.foot_poses[id].position.y = norm * np.sin(angle)
+    
     # WIP
     def update_action (self, link_id:str, pose:Pose) -> bool:
         update = body_to_global_frame(self.heading, np.array([pose.position.x, pose.position.y]))
+        
+        # print(f'Updating from: {self.foot_poses[self.link_idx[link_id]].position.x}, {self.foot_poses[self.link_idx[link_id]].position.y}')
+        # print(f'to: {self.foot_poses[self.link_idx[link_id]].position.x + update[0]}, {self.foot_poses[self.link_idx[link_id]].position.y + update[1]}')
         self.foot_poses[self.link_idx[link_id]].position.x += update[0] # ? switching these to try to better correspond with the full sim
         self.foot_poses[self.link_idx[link_id]].position.y += update[1]
+        
+        # ! making legs not go past allowable bandwidth (disabling for leader-follower env)
+        # self.verify_foot_position(self.link_idx[link_id])
         
         for ii in range(len(self.foot_mags)):
             self.foot_mags[ii] = self.mag_seeder.lookup_magnetism_modifier(np.array([self.foot_poses[ii].position.x, self.foot_poses[ii].position.y]))
@@ -84,11 +119,27 @@ class SimpleSimPlugin(object):
         self.heading = 0
         self.spawn_robot()
         _, self.heading = self.calculate_body_pose()
+        self.raw_map, self.seed_locations, self.single_channel_map = self.mag_seeder.generate_map(self.num_seeds)
+        self.game_background = self.mag_seeder.transform_image_into_pygame(self.raw_map)
+        
+    def paint_robot_and_goal (self, robot, goal):
+        goal_pixels = self.mag_seeder.cartesian_to_image_coordinates(goal)
+        robot_pixels = self.mag_seeder.cartesian_to_image_coordinates(robot)
+        im_circ = cv2.circle(self.raw_map, goal_pixels, radius=20, color=(0, 255, 0), thickness=-1)
+        im_goal = cv2.circle(im_circ, robot_pixels, radius=20, color=(100, 100, 100), thickness=-1)
+        return im_goal
 
     def end_sim_episode (self) -> bool:
         # ? should this be here?
         # self.close()
         pass
+    
+    def reset_leg_positions (self):
+        # - reset leg positions relative to it
+        leg_angles = [7 * np.pi / 4, 1 * np.pi / 4, 3 * np.pi /4, 5 * np.pi / 4]
+        for ii in range(len(self.foot_poses)):
+            self.foot_poses[ii].position.x = self.body_pose.position.x + self.leg_length * np.cos(leg_angles[ii])
+            self.foot_poses[ii].position.y = self.body_pose.position.y + self.leg_length * np.sin(leg_angles[ii])
     
     def _render_frame (self):
         if self.window is None and self.render_mode == "human":
@@ -132,7 +183,8 @@ class SimpleSimPlugin(object):
             canvas,
             (0, 255, 0),
             center=goal_center,
-            radius=self.body_radius * self.scale / 2,
+            # radius=self.body_radius * self.scale / 2,
+            radius=0.20 * self.scale, # & this should be set to the tolerance of the at_goal() function in the environment
         )
         
         if self.render_mode == "human":
@@ -198,16 +250,17 @@ class SimpleSimPlugin(object):
         if (np.abs(self.body_pose.position.x) > self.wall_size) or (np.abs(self.body_pose.position.y > self.wall_size)):
             return True
         
+        # ! disabling this for now (kind of accounted for by progress constraints in update_action), so now only way to register fall is magnetic forces (or if robot is off wall)
         # # - Check if all feet are within spatial "bandwidth"
-        body_pos = np.array([self.body_pose.position.x, self.body_pose.position.y])
-        feet_pos = [np.array([self.foot_poses[ii].position.x, self.foot_poses[ii].position.y]) for ii in range(len(self.foot_poses))]
-        feet_pos_b = []
+        # body_pos = np.array([self.body_pose.position.x, self.body_pose.position.y])
+        # feet_pos = [np.array([self.foot_poses[ii].position.x, self.foot_poses[ii].position.y]) for ii in range(len(self.foot_poses))]
+        # feet_pos_b = []
         
-        for ii in range(len(feet_pos)):
-            feet_pos_b.append(body_to_global_frame(self.heading, feet_pos[ii] - body_pos))
+        # for ii in range(len(feet_pos)):
+        #     feet_pos_b.append(body_to_global_frame(self.heading, feet_pos[ii] - body_pos))
         
-        if self.outside_bandwidth(feet_pos_b):
-            return True
+        # if self.outside_bandwidth(feet_pos_b):
+        #     return True
         
         if not self.verify_magnetic_integrity():
             return True
