@@ -2,6 +2,7 @@
 import sys
 from magneto_env import MagnetoEnv
 from stable_baselines3 import DQN
+from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import CheckpointCallback
 
 def main ():
@@ -21,7 +22,14 @@ def main ():
     )
     
     # - Loading specified weights
-    model = DQN.load(path + 'dqn/independent/multi_input/paraboloid_penalty/1_mil_SOLID.zip', env=env)
+    
+    # model = DQN.load(path + 'dqn/independent/multi_input/paraboloid_penalty/breakpoint.zip', env=env)
+    # model = DQN.load(path + 'dqn/independent/multi_input/simulated_annealing/breakpoint.zip', env=env)
+    # model = DQN.load(path + 'dqn/independent/multi_input/cone/1mil_0.05_0.5.zip', env=env)
+    # model = DQN.load(path + 'dqn/independent/multi_input/cone/breakpoint.zip', env=env)
+    model = DQN.load(path + 'dqn/independent/multi_input/simulated_annealing/great_circles/magneto_1000000_steps.zip', env=env)
+    
+    # model = PPO.load(path + 'leader-follower/no_magnetic_seeds/added_magnetics_obs/breakpoint.zip', env=env)
     # model = DQN.load(path + 'dqn/independent/multi_input/no_magnetism/breakpoint.zip', env=env)
     
     # - Training

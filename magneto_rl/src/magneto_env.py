@@ -26,7 +26,7 @@ class MagnetoEnv (Env):
     metadata = {"render_modes":["human", "rgb_array"], "render_fps":10}
     # metadata = {"render_modes":["human", "rgb_array"], "render_fps":1}
     
-    def __init__ (self, render_mode=None, sim_mode="full", magnetic_seeds=10):
+    def __init__ (self, render_mode=None, sim_mode="full", magnetic_seeds=10, anneal=False):
         super(MagnetoEnv, self).__init__()
         
         self.sim_mode = sim_mode
@@ -43,7 +43,7 @@ class MagnetoEnv (Env):
         
         self.observation_space = spaces.Dict({
             'goal': spaces.Box(low=-10, high=10, shape=(2,)),
-            # 'magnetism': spaces.Box(low=0, high=1, shape=(4,)),
+            'magnetism': spaces.Box(low=0, high=1, shape=(4,)),
         })
         
         self.link_idx_lookup = {0:'AR', 1:'AL', 2:'BL', 3:'BR'}
@@ -54,6 +54,27 @@ class MagnetoEnv (Env):
         self.action_history = []
         self.is_episode_running = False
         self.screenshots = []
+        
+        self.anneal = anneal
+        self.use_temporary_goal = False
+        self.temporary_goal_step_count = 0
+        
+        # *******************************************************************************************
+        # # PPO STUFF
+        # act_low = np.array([-1, -1, -1])
+        # act_high = np.array([1, 1, 1])
+        # self.action_space = spaces.Box(low=act_low, high=act_high, dtype=np.float32)
+        
+        # obs_low = np.array([
+        #     -10, -10, 0, 0, 0, 0,
+        # ])
+        # obs_high = np.array([
+        #     10, 10, 1, 1, 1, 1
+        # ])
+        # self.observation_space = spaces.Box(low=obs_low, high=obs_high, dtype=np.float32)
+        
+        # self.max_foot_step_size = 0.08 # ! remember this is here!
+        # *******************************************************************************************
     
     def step (self, gym_action):
         self.state_history.append(MagnetoState(deepcopy(self.plugin.report_state())))
@@ -62,19 +83,36 @@ class MagnetoEnv (Env):
         action = self.gym_2_action(gym_action)
         self.action_history.append(action)
         
-        # # # . Taking specified action
+        # . Taking specified action
         walk_order = np.random.permutation([0, 1, 2, 3])
         success = self.plugin.update_action(self.link_idx_lookup[walk_order[0]], action.pose)
         success = self.plugin.update_action(self.link_idx_lookup[walk_order[1]], action.pose)
         success = self.plugin.update_action(self.link_idx_lookup[walk_order[2]], action.pose)
         success = self.plugin.update_action(self.link_idx_lookup[walk_order[3]], action.pose)
         
+        # *******************************************************************************************
+        # # PPO STUFF
+        # # . Taking specified action
+        # success = self.plugin.update_action(self.link_idx_lookup[action.idx], action.pose)
+        # # .make permutation of remaining three legs
+        # legs = np.delete(np.array([0, 1, 2, 3]), action.idx)
+        # walk_order = np.random.permutation(legs)
+        # success = self.plugin.update_action(self.link_idx_lookup[walk_order[0]], action.pose)
+        # success = self.plugin.update_action(self.link_idx_lookup[walk_order[1]], action.pose)
+        # success = self.plugin.update_action(self.link_idx_lookup[walk_order[2]], action.pose)
+        # *******************************************************************************************
+        
         # . Observation and info
         obs_raw = self._get_obs(format='ros')
         info = self._get_info()
         
+        # . Simulated annealing
+        if self.anneal:
+            self.monitor_progress()
+        
         # . Termination determination
         reward, is_terminated = self.calculate_reward(obs_raw, action)
+        # reward, is_terminated = self.calculate_reward(obs_raw, action, strategy='cone')
         
         # .Converting observation to format required by Gym
         obs = self.state_2_gym(obs_raw)
@@ -108,9 +146,29 @@ class MagnetoEnv (Env):
         else:
             if strategy == "paraboloid":
                 curr = np.array([state.body_pose.position.x, state.body_pose.position.y])
-                paraboloid_scaling_factor = 0.01
-                reward = -1 * paraboloid_scaling_factor * self.reward_paraboloid.eval(curr)
-                gaussian_scaling_factor = 1
+                
+                # paraboloid_scaling_factor = 0.01
+                paraboloid_scaling_factor = 0.03
+                # paraboloid_scaling_factor = 0.1
+                if self.use_temporary_goal:
+                    reward = -1 * paraboloid_scaling_factor * self.temporary_reward_paraboloid.eval(curr)
+                else:
+                    reward = -1 * paraboloid_scaling_factor * self.reward_paraboloid.eval(curr)
+                
+                gaussian_scaling_factor = 0.5
+                # gaussian_scaling_factor = 0.5
+                for ii in range(len(self.reward_gaussians)):
+                    reward += -1 * gaussian_scaling_factor * self.reward_gaussians[ii].eval(curr)
+            
+            elif strategy == "cone":
+                curr = np.array([state.body_pose.position.x, state.body_pose.position.y])
+
+                # cone_scaling_factor = 0.01
+                # cone_scaling_factor = 0.05
+                cone_scaling_factor = 0.025
+                reward = -1 * cone_scaling_factor * self.reward_cone.eval(curr)
+                
+                gaussian_scaling_factor = 1.0
                 for ii in range(len(self.reward_gaussians)):
                     reward += -1 * gaussian_scaling_factor * self.reward_gaussians[ii].eval(curr)
         
@@ -209,17 +267,22 @@ class MagnetoEnv (Env):
         self.goal = np.array([random.uniform(-4.5, 4.5),random.uniform(-4.5, 4.5)])
         # self.goal = np.array([-1, 1])
         self.reward_paraboloid = paraboloid(self.goal)
+        self.reward_cone = cone(self.goal)
         # if (self.render_mode == "rgb_array") or (self.render_mode == "human"):
         self.plugin.update_goal(self.goal)
         self.plugin.begin_sim_episode()
         self.reward_gaussians = []
         for ii in range(len(self.plugin.seed_locations)):
-            self.reward_gaussians.append(gaussian(self.plugin.seed_locations[ii], 0.45)) #0.6
+            # self.reward_gaussians.append(gaussian(self.plugin.seed_locations[ii], 0.45)) #0.6
+            # self.reward_gaussians.append(gaussian(self.plugin.seed_locations[ii], 0.3)) #0.6
+            self.reward_gaussians.append(circle(self.plugin.seed_locations[ii], 0.2)) #0.6
         self.single_channel_map = self.plugin.single_channel_map
+        self.use_temporary_goal = False
         return True
 
     def terminate_episode (self) -> bool:
         self.is_episode_running = False
+        self.temporary_goal_step_count = 0
         self.export_video()
         return self.plugin.end_sim_episode()
     
@@ -273,6 +336,13 @@ class MagnetoEnv (Env):
         
         action.pose.position.x = self.x_step[int(gym_action / self.step_action_discretization)]
         action.pose.position.y = self.y_step[gym_action % self.step_action_discretization]
+        
+        # *******************************************************************************************
+        # # PPO STUFF
+        # action.idx = self.get_foot_from_action(gym_action[0])
+        # action.pose.position.x = self.max_foot_step_size * gym_action[1]
+        # action.pose.position.y = self.max_foot_step_size * gym_action[2]
+        # *******************************************************************************************
 
         # print(action.pose.position.x, ", ", action.pose.position.y)
         return action
@@ -280,7 +350,10 @@ class MagnetoEnv (Env):
     def state_2_gym (self, state:MagnetoState) -> np.array:
         _, _, body_yaw = euler_from_quaternion(state.body_pose.orientation.w, state.body_pose.orientation.x, state.body_pose.orientation.y, state.body_pose.orientation.z)
         
-        relative_goal = global_to_body_frame(np.array([state.body_pose.position.x, state.body_pose.position.y]), body_yaw, self.goal)
+        if self.use_temporary_goal:
+            relative_goal = global_to_body_frame(np.array([state.body_pose.position.x, state.body_pose.position.y]), body_yaw, self.temporary_goal)
+        else:
+            relative_goal = global_to_body_frame(np.array([state.body_pose.position.x, state.body_pose.position.y]), body_yaw, self.goal)
         
         relative_foot0 = global_to_body_frame(np.array([state.body_pose.position.x, state.body_pose.position.y]), body_yaw, np.array([state.foot0.pose.position.x, state.foot0.pose.position.y]))
         relative_foot1 = global_to_body_frame(np.array([state.body_pose.position.x, state.body_pose.position.y]), body_yaw, np.array([state.foot1.pose.position.x, state.foot1.pose.position.y]))
@@ -295,11 +368,17 @@ class MagnetoEnv (Env):
             relative_foot1 = -1 * relative_foot1
             relative_foot2 = -1 * relative_foot2
             relative_foot3 = -1 * relative_foot3
+            
         
         gym_obs = {
             'goal': relative_goal,
-            # 'magnetism': magnetic_forces,
+            'magnetism': magnetic_forces,
         }
+        
+        # *******************************************************************************************
+        # # PPO STUFF
+        # gym_obs = np.concatenate((relative_goal, magnetic_forces), dtype=np.float32)
+        # *******************************************************************************************
         
         return gym_obs
     
@@ -314,3 +393,36 @@ class MagnetoEnv (Env):
         for ii in range(len(feet_pos)):
             relative_distances[ii] = np.linalg.norm(global_to_body_frame(self.goal, body_yaw, feet_pos[ii]), 2)
         return np.argmin(relative_distances)
+    
+    # TODO
+    def monitor_progress (self, num_actions=10, max_steps=50):
+        # . if we haven't progressed to the goal by some amount within the past x turns, generate a new random goal, once we get there, try to go to the real goal again
+        if len(self.state_history) < num_actions:
+            return
+        
+        past = self.goal - np.array([self.state_history[-10].body_pose.position.x, self.state_history[-10].body_pose.position.y])
+        curr = self.goal - np.array([self.state_history[-1].body_pose.position.x, self.state_history[-1].body_pose.position.y])
+        
+        if not self.use_temporary_goal:
+            # delta = np.array([0.0, 0.0])
+            # for i in range(-num_actions + 1, 0):
+            #     delta += (self.goal - np.array([self.state_history[i].body_pose.position.x, self.state_history[i].body_pose.position.y]) - self.goal - np.array([self.state_history[i - 1].body_pose.position.x, self.state_history[i - 1].body_pose.position.y]))
+            # print(np.linalg.norm(delta))
+            # if np.linalg.norm(delta) < 0.05:
+            if np.linalg.norm(curr - past, 2) < 0.01:
+                self.use_temporary_goal = True
+                # self.temporary_goal = np.array([random.uniform(-4.5, 4.5),random.uniform(-4.5, 4.5)])
+                
+                # _, _, body_yaw = euler_from_quaternion(self.state_history[-1].body_pose.orientation.w, self.state_history[-1].body_pose.orientation.x, self.state_history[-1].body_pose.orientation.y, self.state_history[-1].body_pose.orientation.z)
+                # relative_goal = global_to_body_frame(np.array([self.state_history[-1].body_pose.position.x, self.state_history[-1].body_pose.position.y]), body_yaw, self.goal)
+                # self.temporary_goal = np.array([])
+                
+                self.temporary_goal = np.array([self.state_history[-1].body_pose.position.x, self.state_history[-1].body_pose.position.y]) + np.array([random.uniform(-2, 2),random.uniform(-2, 2)])
+                self.temporary_reward_paraboloid = paraboloid(self.temporary_goal)
+                print(f'Switching to temporary goal at {self.temporary_goal}!')
+        else:
+            self.temporary_goal_step_count += 1
+            if self.temporary_goal_step_count > max_steps:
+                self.use_temporary_goal = False
+                self.temporary_goal_step_count = 0
+                print(f'Switching back to original goal at {self.goal}!')

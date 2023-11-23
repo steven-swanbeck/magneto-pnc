@@ -114,4 +114,8 @@ class MagneticSeeder (object):
         if self.map is None:
             return 1.
         pixel_coords = self.cartesian_to_image_coordinates(coords)
-        return float(255 - self.map[pixel_coords[0], pixel_coords[1]][0]) / 255
+        # return float(255 - self.map[pixel_coords[0], pixel_coords[1]][0]) / 255
+        modifier = float(255 - self.map[pixel_coords[0], pixel_coords[1]][0]) / 255
+        if modifier > 0.7:
+            modifier = 1.
+        return modifier

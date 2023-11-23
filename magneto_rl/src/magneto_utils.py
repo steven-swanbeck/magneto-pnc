@@ -165,6 +165,11 @@ class paraboloid (object):
         
     def eval(self, location:np.array) -> float:
         return (location[0] - self.w)**2 + (location[1] - self.h)**2
+    
+# def eval_3d_parabola (position:np.array, goal:np.array) -> float:
+#     m = (goal[0] - position[0]) / (goal[1] - position[1])
+#     b = goal[1] - m * goal[0]
+#     return ()
 
 class gaussian (object):
     def __init__(self, origin:np.array, sigma:float) -> None:
@@ -174,3 +179,23 @@ class gaussian (object):
     
     def eval (self, location:np.array) -> float:
         return (1 / (2 * np.pi * self.sigma**2)) * np.exp(-1 * ((location[0] - self.x0)**2 + (location[1] - self.y0)**2) / (2 * self.sigma**2))
+
+class circle (object):
+    def __init__(self, origin:np.array, radius:float) -> None:
+        self.x0 = origin[0]
+        self.y0 = origin[1]
+        self.radius = radius
+    
+    def eval (self, location:np.array) -> float:
+        if np.linalg.norm(location - np.array([self.x0, self.y0])) < self.radius:
+            return -1
+        else:
+            return 0
+
+class cone (object):
+    def __init__(self, origin:np.array) -> None:
+        self.w = origin[0]
+        self.h = origin[1]
+        
+    def eval(self, location:np.array) -> float:
+        return np.abs((location[0] - self.w)) + np.abs((location[1] - self.h))
